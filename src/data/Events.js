@@ -427,6 +427,295 @@ export const baseDatos = {
       ],
     },
     {
+      id: "e1",
+      fase: "ejecucion",
+      rol: "planificacion",
+      titulo: "Proveedor logístico declara fuerza mayor",
+      descripcion:
+        "El proveedor principal notifica posible retraso crítico de 4 semanas debido a problemas logísticos mundiales y aduanas.",
+      opciones: [
+        {
+          texto:
+            "Compresión de cronograma (Crashing): Inyectar dinero masivo para acelerar internamente y no perder tiempo.",
+          etiquetas: ["agresiva", "orientada_a_tiempo"],
+          impactos: {
+            tiempo: 0,
+            presupuesto: -25000,
+            calidad: -5,
+            riesgo: 15,
+            satisfaccion: 0,
+          },
+        },
+        {
+          texto:
+            "Ejecución rápida (Fast Tracking): Solapar fuertemente actividades que eran secuenciales, asumiendo grandes riesgos técnicos.",
+          etiquetas: [
+            "agresiva",
+            "orientada_a_tiempo",
+            "orientada_a_stakeholders",
+          ],
+          impactos: {
+            tiempo: 2,
+            presupuesto: 0,
+            calidad: -15,
+            riesgo: 35,
+            satisfaccion: -5,
+          },
+        },
+        {
+          texto:
+            "Aceptar el retraso estructural, actualizar línea base y gestionar el impacto a través del Comité (CCB).",
+          etiquetas: ["conservadora", "orientada_a_control", "burocratica"],
+          impactos: {
+            tiempo: -4,
+            presupuesto: -2000,
+            calidad: 5,
+            riesgo: -10,
+            satisfaccion: -25,
+          },
+        },
+      ],
+    },
+    {
+      id: "e2",
+      fase: "ejecucion",
+      rol: "calidad",
+      titulo: "Descubrimiento de 'Gold Plating' en el sistema",
+      descripcion:
+        "El equipo técnico añadió 'por iniciativa propia' elementos estéticos extra no solicitados. Un bug en ellos ahora bloquea todo el testeo.",
+      opciones: [
+        {
+          texto:
+            "Remover de cuajo la mejora y aplicar reproche estricto para ajustar a la Línea Base.",
+          etiquetas: ["conservadora", "orientada_a_control", "estricta"],
+          impactos: {
+            tiempo: -1,
+            presupuesto: 0,
+            calidad: 0,
+            riesgo: -15,
+            satisfaccion: -10,
+          },
+        },
+        {
+          texto:
+            "Apostar por la mejora (a los usuarios les gustará): dedicar horas extra en reparar el bug y mantener el añadido.",
+          etiquetas: ["agresiva", "orientada_a_stakeholders"],
+          impactos: {
+            tiempo: -2,
+            presupuesto: -10000,
+            calidad: 15,
+            riesgo: 25,
+            satisfaccion: 20,
+          },
+        },
+        {
+          texto:
+            "Frenar desarrollo, documentar el impacto y pedir al Sponsor o CCB una decisión oficial sobre qué hacer.",
+          etiquetas: ["equilibrada", "burocratica"],
+          impactos: {
+            tiempo: -3,
+            presupuesto: -2000,
+            calidad: 5,
+            riesgo: -5,
+            satisfaccion: -5,
+          },
+        },
+      ],
+    },
+    {
+      id: "e3",
+      fase: "ejecucion",
+      rol: "director",
+      titulo: "Exigencia Directiva: Adición Urgente al Alcance",
+      descripcion:
+        "El Patrocinador Ejecutivo exige incorporar una nueva métrica gerencial y su interfaz en mitad de las pruebas, saltándose los procesos.",
+      opciones: [
+        {
+          texto:
+            "Decir NO e insistir en los marcos PMBOK y el grave impacto en la estabilidad actual de pruebas.",
+          etiquetas: ["conservadora", "estricta", "orientada_a_control"],
+          impactos: {
+            tiempo: 0,
+            presupuesto: 0,
+            calidad: 10,
+            riesgo: -15,
+            satisfaccion: -35,
+          },
+        },
+        {
+          texto:
+            "Tomarlo como Solicitud Formal, detener pruebas y exigir aprobación oficial del Comité (CCB).",
+          etiquetas: ["equilibrada", "orientada_a_calidad", "burocratica"],
+          impactos: {
+            tiempo: -2,
+            presupuesto: -3000,
+            calidad: 5,
+            riesgo: 5,
+            satisfaccion: -15,
+          },
+        },
+        {
+          texto:
+            "¡El jefe es el jefe! Modificar y aplicar en caliente por orden directa, arriesgando componentes ya estables.",
+          etiquetas: ["agresiva", "reactiva", "orientada_a_stakeholders"],
+          impactos: {
+            tiempo: -2,
+            presupuesto: -20000,
+            calidad: -25,
+            riesgo: 40,
+            satisfaccion: 25,
+          },
+        },
+      ],
+    },
+    {
+      id: "e4",
+      fase: "ejecucion",
+      rol: "director",
+      titulo: "Conflicto Grave de Intereses en Equipo Técnico",
+      descripcion:
+        "Pausa total en operaciones: Dos líderes técnicos se acusan de saboteo arquitectónico por diferencias irreconciliables. Tienen al equipo dividido.",
+      opciones: [
+        {
+          texto:
+            "Forzar imposición directiva: Tomar la decisión del diseño unilateralmente y exigir cumplimiento (Forcing).",
+          etiquetas: ["agresiva", "reaccional", "orientada_a_tiempo"],
+          impactos: {
+            tiempo: 0,
+            presupuesto: 0,
+            calidad: -15,
+            riesgo: 20,
+            satisfaccion: -25,
+          },
+        },
+        {
+          texto:
+            "Resolución PMBOK (Problem Solving/Colaborar): Negociar en formato Taller hasta desenredar o lograr un compromiso técnico.",
+          etiquetas: [
+            "conservadora",
+            "equilibrada",
+            "orientada_a_calidad",
+            "negociadora",
+          ],
+          impactos: {
+            tiempo: -3,
+            presupuesto: -5000,
+            calidad: 25,
+            riesgo: -20,
+            satisfaccion: 15,
+          },
+        },
+        {
+          texto:
+            "Acomodar (Smoothing): Minimizar el conflicto, buscar puntos en común e ir avanzando de forma paralela en lo que estén de acuerdo.",
+          etiquetas: ["equilibrada", "reactiva"],
+          impactos: {
+            tiempo: -1,
+            presupuesto: 0,
+            calidad: -5,
+            riesgo: 30,
+            satisfaccion: 5,
+          },
+        },
+      ],
+    },
+    {
+      id: "e5",
+      fase: "ejecucion",
+      rol: "planificacion",
+      titulo: "Auditoría de Valor Ganado: CPI en 0.81",
+      descripcion:
+        "Los indicadores de EVM muestran rojos severos. El proyecto está gastando un 19% más de dinero del planificado para el avance físico real obtenido.",
+      opciones: [
+        {
+          texto:
+            "Drenar severamente la Reserva de Gestión inyectando subcontratos emergentes y horas extras para recomponer plazos.",
+          etiquetas: ["agresiva", "reactiva", "orientada_a_tiempo"],
+          impactos: {
+            tiempo: 1,
+            presupuesto: -35000,
+            calidad: -10,
+            riesgo: 25,
+            satisfaccion: -5,
+          },
+        },
+        {
+          texto:
+            "Optimización quirúrgica y rescate: Recortar drásticamente características opcionales y rebajar la calidad a lo mínimo aceptable legalmente.",
+          etiquetas: ["conservadora", "orientada_a_control"],
+          impactos: {
+            tiempo: 0,
+            presupuesto: 15000,
+            calidad: -30,
+            riesgo: 10,
+            satisfaccion: -35,
+          },
+        },
+        {
+          texto:
+            "Rebaselinización (PMBOK): Frenar el proyecto, aceptar la pérdida, recalcular el presupuesto estimado de término (EAC) y solicitar fondos adicionales.",
+          etiquetas: ["equilibrada", "burocratica", "orientada_a_stakeholders"],
+          impactos: {
+            tiempo: -3,
+            presupuesto: 35000,
+            calidad: 5,
+            riesgo: -10,
+            satisfaccion: -25,
+          },
+        },
+      ],
+    },
+    {
+      id: "e6",
+      fase: "ejecucion",
+      rol: "calidad",
+      titulo: "Fuerte Resistencia al Cambio en el Usuario Piloto",
+      descripcion:
+        "Los Stakeholders operativos finales expresan que la interfaz es enrevesada y que no piensan adoptar el sistema nuevo.",
+      opciones: [
+        {
+          texto:
+            "Apurar entrega ignorando quejas; la interfaz cumple todos los criterios definidos originalmente en la matriz de requisitos.",
+          etiquetas: ["agresiva", "estricta", "orientada_a_control"],
+          impactos: {
+            tiempo: 1,
+            presupuesto: 0,
+            calidad: -15,
+            riesgo: 35,
+            satisfaccion: -40,
+          },
+        },
+        {
+          texto:
+            "Sacrificar las fechas e invertir en un plan profundo de UX, Adopción y Gestión del Cambio Organizacional.",
+          etiquetas: [
+            "conservadora",
+            "orientada_a_calidad",
+            "orientada_a_stakeholders",
+          ],
+          impactos: {
+            tiempo: -4,
+            presupuesto: -20000,
+            calidad: 35,
+            riesgo: -20,
+            satisfaccion: 25,
+          },
+        },
+        {
+          texto:
+            "Plan de Choque formativo: Charlas interactivas inmediatas e incentivos, inyectando horas soporte, sin frenar todo.",
+          etiquetas: ["equilibrada", "negociadora"],
+          impactos: {
+            tiempo: -2,
+            presupuesto: -8000,
+            calidad: 15,
+            riesgo: 5,
+            satisfaccion: 10,
+          },
+        },
+      ],
+    },
+    {
       id: "c1",
       fase: "monitoreo",
       rol: "director",
