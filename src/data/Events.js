@@ -433,17 +433,22 @@ export const baseDatos = {
       titulo: "Proveedor logístico declara fuerza mayor",
       descripcion:
         "El proveedor principal notifica posible retraso crítico de 4 semanas debido a problemas logísticos mundiales y aduanas.",
+      // Estructura estocástica: cada impacto tiene un valor base y opcionalmente un riesgoOculto
+      estocastico: true,
       opciones: [
         {
           texto:
             "Compresión de cronograma (Crashing): Inyectar dinero masivo para acelerar internamente y no perder tiempo.",
           etiquetas: ["agresiva", "orientada_a_tiempo"],
           impactos: {
-            tiempo: 0,
-            presupuesto: -25000,
-            calidad: -5,
-            riesgo: 15,
-            satisfaccion: 0,
+            tiempo: { base: 0, riesgoOculto: { prob: 0.25, extra: -2 } }, // 25% de probabilidad de perder 2 semanas extra
+            presupuesto: {
+              base: -25000,
+              riesgoOculto: { prob: 0.3, extra: -15000 },
+            }, // 30% de sobrecosto adicional
+            calidad: { base: -5, riesgoOculto: null },
+            riesgo: { base: 15, riesgoOculto: null },
+            satisfaccion: { base: 0, riesgoOculto: null },
           },
         },
         {
@@ -455,11 +460,14 @@ export const baseDatos = {
             "orientada_a_stakeholders",
           ],
           impactos: {
-            tiempo: 2,
-            presupuesto: 0,
-            calidad: -15,
-            riesgo: 35,
-            satisfaccion: -5,
+            tiempo: { base: 2, riesgoOculto: { prob: 0.4, extra: -3 } }, // 40% de probabilidad de perder 3 semanas (colisión de actividades)
+            presupuesto: {
+              base: 0,
+              riesgoOculto: { prob: 0.35, extra: -12000 },
+            }, // 35% de costos ocultos por retrabajos
+            calidad: { base: -15, riesgoOculto: { prob: 0.3, extra: -10 } }, // 30% de degradación adicional de calidad
+            riesgo: { base: 35, riesgoOculto: null },
+            satisfaccion: { base: -5, riesgoOculto: null },
           },
         },
         {
@@ -467,11 +475,14 @@ export const baseDatos = {
             "Aceptar el retraso estructural, actualizar línea base y gestionar el impacto a través del Comité (CCB).",
           etiquetas: ["conservadora", "orientada_a_control", "burocratica"],
           impactos: {
-            tiempo: -4,
-            presupuesto: -2000,
-            calidad: 5,
-            riesgo: -10,
-            satisfaccion: -25,
+            tiempo: { base: -4, riesgoOculto: null }, // Impacto determinístico (sin incertidumbre)
+            presupuesto: { base: -2000, riesgoOculto: null },
+            calidad: { base: 5, riesgoOculto: null },
+            riesgo: { base: -10, riesgoOculto: null },
+            satisfaccion: {
+              base: -25,
+              riesgoOculto: { prob: 0.2, extra: -10 },
+            }, // 20% de que stakeholders reaccionen peor
           },
         },
       ],

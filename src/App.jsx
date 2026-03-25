@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ROLES, ROLES_DEF, METRICAS_INICIALES } from "./constants/Roles";
 import { baseDatos, eventoFase, deciderOpcionAutomatica } from "./data/Events";
+import { AgentEngine } from "./engine/AgentEngine";
 
 function App() {
   const [toastMessage, setToastMessage] = useState("");
@@ -20,9 +21,26 @@ function App() {
 
   const showToast = (mensaje) => {
     setToastMessage(mensaje);
+    // Tiempo más largo para mensajes del sistema de votación
+    const timeout = mensaje.length > 100 ? 6000 : 3500;
     setTimeout(() => {
       setToastMessage("");
-    }, 3500);
+    }, timeout);
+  };
+
+  // Helper para mostrar impactos (soporta formato simple y estocástico)
+  const formatearImpacto = (impacto) => {
+    if (typeof impacto === "number") return impacto;
+    if (impacto && typeof impacto === "object") {
+      const base = impacto.base || 0;
+      if (impacto.riesgoOculto && impacto.riesgoOculto.prob) {
+        const prob = Math.round(impacto.riesgoOculto.prob * 100);
+        const extra = impacto.riesgoOculto.extra;
+        return `${base} (${prob}%: ${extra > 0 ? "+" : ""}${extra})`;
+      }
+      return base;
+    }
+    return 0;
   };
 
   const evaluarFinal = () => {
@@ -76,7 +94,9 @@ function App() {
 REPORTE DEL SIMULADOR - EQUIPO ${estado.equipo}
 --------------------------------------------------
 INTEGRANTES:
-${Object.entries(estado.rolesAsignados).map(([rId, asig]) => `- ${ROLES_DEF[rId]?.nombre || rId}: ${asig.nombre}`).join("\n")}
+${Object.entries(estado.rolesAsignados)
+  .map(([rId, asig]) => `- ${ROLES_DEF[rId]?.nombre || rId}: ${asig.nombre}`)
+  .join("\n")}
 
 --------------------------------------------------
 Veredicto: ${resultado.veredicto}
@@ -149,35 +169,180 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     }));
   };
 
-  const aplicarDecision = (evento, opcion) => {
-    const imp = opcion.impactos;
+  // Sistema de votación con resolución de conflictos (Teoría de Juegos)
+  const aplicarDecision = (evento, opcionVotadaPorJugador) => {
+    const engine = new AgentEngine(estado);
+
+    // Determinar qué rol está votando (el del evento actual)
+    const rolDelEvento = evento.rol;
+
+    // Los otros dos roles votan automáticamente
+    const todosLosRoles = [ROLES.DIRECTOR, ROLES.PLANIFICACION, ROLES.CALIDAD];
+    const otrosRoles = todosLosRoles.filter((r) => r !== rolDelEvento);
+
+    // Recopilar todos los votos
+    const votos = {};
+
+    // El voto del jugador humano (o auto si es IA)
+    if (estado.rolesAsignados[rolDelEvento]?.tipo === "auto") {
+      // Si es automático, usar deciderOpcionAutomatica
+      const votoAuto = deciderOpcionAutomatica(evento.opciones, rolDelEvento);
+      votos[rolDelEvento] = {
+        opcion: votoAuto,
+        razonamiento: "Decisión automática basada en sesgo del rol",
+      };
+    } else {
+      // Si es humano, usar la opción que eligió
+      votos[rolDelEvento] = {
+        opcion: opcionVotadaPorJugador,
+        razonamiento: "Decisión del jugador humano",
+      };
+    }
+
+    // Los otros roles votan usando AgentEngine con utilidad esperada
+    otrosRoles.forEach((rol) => {
+      const resultado = engine.emitirVoto(evento.opciones, rol);
+      votos[rol] = {
+        opcion: resultado.opcionElegida,
+        razonamiento: resultado.razonamiento,
+      };
+    });
+
+    // Contar votos por opción
+    const conteoVotos = {};
+    evento.opciones.forEach((op) => {
+      conteoVotos[op.texto] = { opcion: op, votantes: [], count: 0 };
+    });
+
+    Object.entries(votos).forEach(([rol, voto]) => {
+      const textoOpcion = voto.opcion.texto;
+      if (conteoVotos[textoOpcion]) {
+        conteoVotos[textoOpcion].votantes.push(rol);
+        conteoVotos[textoOpcion].count++;
+      }
+    });
+
+    // Ordenar por número de votos
+    const resultadosOrdenados = Object.values(conteoVotos).sort(
+      (a, b) => b.count - a.count,
+    );
+
+    // Resolver el conflicto
+    let opcionGanadora;
+    let tipoResolucion;
+    let penalizacion = {
+      tiempo: 0,
+      presupuesto: 0,
+      calidad: 0,
+      riesgo: 0,
+      satisfaccion: 0,
+    };
+    let mensajeResolucion;
+
+    const maxVotos = resultadosOrdenados[0]?.count || 0;
+
+    if (maxVotos === 3) {
+      // UNANIMIDAD (Equilibrio de Nash)
+      tipoResolucion = "unanimidad";
+      opcionGanadora = resultadosOrdenados[0].opcion;
+      penalizacion = { calidad: 5, riesgo: -5 }; // Bonus por sinergia
+      mensajeResolucion = `¡Unanimidad! Los 3 roles votaron por la misma opción. Bonus de Sinergia: +5 Calidad, -5 Riesgo.`;
+    } else if (maxVotos === 2) {
+      // MAYORÍA (Fricción moderada)
+      tipoResolucion = "mayoria";
+      opcionGanadora = resultadosOrdenados[0].opcion;
+      penalizacion = { presupuesto: -2000 }; // Costo de fricción
+      const ganadores = resultadosOrdenados[0].votantes.map(
+        (r) => ROLES_DEF[r]?.nombre || r,
+      );
+      const perdedor = resultadosOrdenados[1]?.votantes.map(
+        (r) => ROLES_DEF[r]?.nombre || r,
+      );
+      mensajeResolucion = `Mayoría: ${ganadores.join(" y ")} votaron igual, pero ${perdedor?.join(", ") || "otro rol"} votó diferente. Costos de fricción: -$2,000.`;
+    } else {
+      // EMPATE (Caos - cada rol votó diferente)
+      tipoResolucion = "empate";
+      // El Director desempata
+      opcionGanadora = votos[ROLES.DIRECTOR].opcion;
+      penalizacion = { tiempo: -2 }; // Parálisis por análisis
+      mensajeResolucion = `Empate total: Cada rol votó diferente. El Director desempata. Penalización: -2 semanas por parálisis.`;
+    }
+
+    // Resolver impactos estocásticos si el evento es estocástico
+    let impactosFinales;
+    let mensajeRiesgos = "";
+
+    if (evento.estocastico) {
+      const resolucionEstocastica =
+        engine.resolverImpactosEstocasticos(opcionGanadora);
+      impactosFinales = resolucionEstocastica.impactos;
+
+      if (resolucionEstocastica.riesgosActivados.length > 0) {
+        const riesgosTexto = resolucionEstocastica.riesgosActivados
+          .map((r) => `${r.metrica}: ${r.extra > 0 ? "+" : ""}${r.extra}`)
+          .join(", ");
+        mensajeRiesgos = ` ⚠️ Riesgos ocultos activados: ${riesgosTexto}`;
+      }
+    } else {
+      impactosFinales = opcionGanadora.impactos;
+    }
+
+    // Aplicar impactos + penalización
     setEstado((prev) => ({
       ...prev,
-      tiempoRestante: prev.tiempoRestante + imp.tiempo,
-      presupuestoRestante: prev.presupuestoRestante + imp.presupuesto,
+      tiempoRestante:
+        prev.tiempoRestante +
+        (impactosFinales.tiempo || 0) +
+        (penalizacion.tiempo || 0),
+      presupuestoRestante:
+        prev.presupuestoRestante +
+        (impactosFinales.presupuesto || 0) +
+        (penalizacion.presupuesto || 0),
       calidadProyecto: Math.min(
         100,
-        Math.max(0, prev.calidadProyecto + imp.calidad),
+        Math.max(
+          0,
+          prev.calidadProyecto +
+            (impactosFinales.calidad || 0) +
+            (penalizacion.calidad || 0),
+        ),
       ),
       riesgoProyecto: Math.min(
         100,
-        Math.max(0, prev.riesgoProyecto + imp.riesgo),
+        Math.max(
+          0,
+          prev.riesgoProyecto +
+            (impactosFinales.riesgo || 0) +
+            (penalizacion.riesgo || 0),
+        ),
       ),
       satisfaccionStakeholders: Math.min(
         100,
-        Math.max(0, prev.satisfaccionStakeholders + imp.satisfaccion),
+        Math.max(
+          0,
+          prev.satisfaccionStakeholders +
+            (impactosFinales.satisfaccion || 0) +
+            (penalizacion.satisfaccion || 0),
+        ),
       ),
       historico: [
         ...prev.historico,
         {
           id: evento.id,
           evento: evento.titulo,
-          decision: opcion.texto,
+          decision: opcionGanadora.texto,
           rol: evento.rol,
+          tipoResolucion,
+          votos: Object.entries(votos).map(([rol, v]) => ({
+            rol: ROLES_DEF[rol]?.nombre || rol,
+            opcion: v.opcion.texto.substring(0, 40) + "...",
+          })),
         },
       ],
     }));
-    showToast(`Decisión registrada: ${opcion.texto} 👀`);
+
+    // Mostrar resumen completo
+    showToast(`📊 ${mensajeResolucion}${mensajeRiesgos}`);
   };
 
   if (estado.faseActual === 0) {
@@ -448,27 +613,104 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
                     </button>
                   </div>
                 ) : (
-                  <div className="opciones-container">
-                    {ev.opciones.map((op, idx) => (
-                      <button
-                        key={idx}
-                        className="tarjeta-opcion"
-                        onClick={() => aplicarDecision(ev, op)}
-                      >
-                        <h3>{op.texto}</h3>
-                        <div
+<div className="opciones-container">
+                    {/* --- NUEVO: RADAR DE TENSIÓN (PRE-CÁLCULO DE TEORÍA DE JUEGOS) --- */}
+                    {(() => {
+                      const engine = new AgentEngine(estado);
+                      const rolesIA = [ROLES.DIRECTOR, ROLES.PLANIFICACION, ROLES.CALIDAD].filter(r => r !== ev.rol);
+                      const intenciones = rolesIA.map(r => engine.emitirVoto(ev.opciones, r).opcionElegida.texto);
+                      const hayConflicto = intenciones[0] !== intenciones[1];
+                      
+                      return (
+                        <div style={{
+                          background: hayConflicto ? "#fff3cd" : "#d4edda",
+                          border: `1px solid ${hayConflicto ? "#ffeeba" : "#c3e6cb"}`,
+                          padding: "12px",
+                          borderRadius: "8px",
+                          marginBottom: "20px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px"
+                        }}>
+                          <span style={{ fontSize: "1.5rem" }}>{hayConflicto ? "⚡" : "🤝"}</span>
+                          <div>
+                            <strong style={{ color: hayConflicto ? "#856404" : "#155724" }}>
+                              Radar de Comité: {hayConflicto ? "Alta Tensión Detectada" : "Alineación Detectada"}
+                            </strong>
+                            <p style={{ margin: "5px 0 0 0", fontSize: "0.85rem", color: "var(--text-light)" }}>
+                              {hayConflicto 
+                                ? "Los otros roles tienen prioridades opuestas. Cualquier decisión generará fricción y sobrecostos." 
+                                : "Los otros roles parecen coincidir en su evaluación. Es un buen momento para buscar el consenso."}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* --- FIN RADAR --- */}
+
+                    {ev.opciones.map((op, idx) => {
+                      const tieneRiesgo = Object.values(op.impactos).some(imp => typeof imp === 'object' && imp?.riesgoOculto);
+                      
+                      return (
+                        <button
+                          key={idx}
+                          className="tarjeta-opcion"
+                          onClick={() => aplicarDecision(ev, op)}
                           style={{
-                            fontSize: "0.85rem",
-                            marginTop: "10px",
-                            color: "var(--text-light)",
+                            position: "relative",
+                            border: tieneRiesgo ? "2px dashed var(--warning)" : "2px solid transparent",
+                            transition: "all 0.3s ease"
                           }}
                         >
-                          Impactos: ⏱ {op.impactos.tiempo} | 💰{" "}
-                          {op.impactos.presupuesto} | 🛡 {op.impactos.riesgo} |
-                          🤝 {op.impactos.satisfaccion}
-                        </div>
-                      </button>
-                    ))}
+                          {/* Etiqueta de Juego Estocástico */}
+                          {tieneRiesgo && (
+                            <div style={{
+                              position: "absolute",
+                              top: "-12px",
+                              right: "15px",
+                              background: "var(--warning)",
+                              color: "black",
+                              padding: "4px 10px",
+                              borderRadius: "12px",
+                              fontSize: "0.75rem",
+                              fontWeight: "bold",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                            }}>
+                              🎲 Apuesta Estocástica
+                            </div>
+                          )}
+
+                          <h3 style={{ marginTop: tieneRiesgo ? "10px" : "0" }}>{op.texto}</h3>
+                          
+                          {/* Visualización de Impactos Mejorada */}
+                          <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "8px",
+                            marginTop: "15px",
+                            background: "var(--light)",
+                            padding: "10px",
+                            borderRadius: "6px"
+                          }}>
+                            <div style={{ fontSize: "0.85rem" }}>
+                              ⏱ <strong>Tiempo:</strong> {formatearImpacto(op.impactos.tiempo)}
+                            </div>
+                            <div style={{ fontSize: "0.85rem" }}>
+                              💰 <strong>Costo:</strong> {formatearImpacto(op.impactos.presupuesto)}
+                            </div>
+                            <div style={{ fontSize: "0.85rem" }}>
+                              🛡 <strong>Riesgo:</strong> {formatearImpacto(op.impactos.riesgo)}
+                            </div>
+                            <div style={{ fontSize: "0.85rem" }}>
+                              🤝 <strong>Satisfacc:</strong> {formatearImpacto(op.impactos.satisfaccion)}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )
               ) : (
