@@ -1,5 +1,10 @@
-import { useState } from "react";
-import { ROLES, ROLES_DEF, METRICAS_INICIALES } from "./constants/Roles";
+﻿import { useState } from "react";
+import { ROLES, ROLES_DEF } from "./constants/Roles";
+import {
+  METRICAS_INICIALES,
+  CASO_ESTUDIO,
+  NOMBRES_ROLES,
+} from "./data/Config";
 import { baseDatos, eventoFase, deciderOpcionAutomatica } from "./data/Events";
 import { AgentEngine } from "./engine/AgentEngine";
 
@@ -48,8 +53,17 @@ function App() {
     let puntaje = 0;
 
     // Cálculo proporcional (máximo 20 puntos por métrica para un total de 100)
-    puntaje += Math.max(0, Math.min(20, (p.tiempoRestante / 12) * 20));
-    puntaje += Math.max(0, Math.min(20, (p.presupuestoRestante / 150000) * 20));
+    puntaje += Math.max(
+      0,
+      Math.min(20, (p.tiempoRestante / METRICAS_INICIALES.tiempoRestante) * 20),
+    );
+    puntaje += Math.max(
+      0,
+      Math.min(
+        20,
+        (p.presupuestoRestante / METRICAS_INICIALES.presupuestoRestante) * 20,
+      ),
+    );
     puntaje += Math.max(0, Math.min(20, (p.calidadProyecto / 100) * 20));
     puntaje += Math.max(0, Math.min(20, ((100 - p.riesgoProyecto) / 100) * 20));
     puntaje += Math.max(
@@ -91,7 +105,7 @@ function App() {
     }
 
     const textoReporte = `
-REPORTE DEL SIMULADOR - EQUIPO ${estado.equipo}
+BITÁCORA DE MISIÓN - GREMIO:  ${estado.equipo}
 --------------------------------------------------
 INTEGRANTES:
 ${Object.entries(estado.rolesAsignados)
@@ -349,9 +363,7 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     return (
       <div className="app-container">
         <main style={{ marginTop: "5vh" }}>
-          <h1 style={{ textAlign: "center" }}>
-            Simulador PMBOK (Rework Roles)
-          </h1>
+          <h1 style={{ textAlign: "center" }}>{CASO_ESTUDIO.titulo}</h1>
           <div className="fase-header" style={{ textAlign: "center" }}>
             <p>
               Ingresa el nombre del equipo y los jugadores. Si algún rol queda
@@ -613,33 +625,57 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
                     </button>
                   </div>
                 ) : (
-<div className="opciones-container">
+                  <div className="opciones-container">
                     {/* --- NUEVO: RADAR DE TENSIÓN (PRE-CÁLCULO DE TEORÍA DE JUEGOS) --- */}
                     {(() => {
                       const engine = new AgentEngine(estado);
-                      const rolesIA = [ROLES.DIRECTOR, ROLES.PLANIFICACION, ROLES.CALIDAD].filter(r => r !== ev.rol);
-                      const intenciones = rolesIA.map(r => engine.emitirVoto(ev.opciones, r).opcionElegida.texto);
+                      const rolesIA = [
+                        ROLES.DIRECTOR,
+                        ROLES.PLANIFICACION,
+                        ROLES.CALIDAD,
+                      ].filter((r) => r !== ev.rol);
+                      const intenciones = rolesIA.map(
+                        (r) =>
+                          engine.emitirVoto(ev.opciones, r).opcionElegida.texto,
+                      );
                       const hayConflicto = intenciones[0] !== intenciones[1];
-                      
+
                       return (
-                        <div style={{
-                          background: hayConflicto ? "#fff3cd" : "#d4edda",
-                          border: `1px solid ${hayConflicto ? "#ffeeba" : "#c3e6cb"}`,
-                          padding: "12px",
-                          borderRadius: "8px",
-                          marginBottom: "20px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px"
-                        }}>
-                          <span style={{ fontSize: "1.5rem" }}>{hayConflicto ? "⚡" : "🤝"}</span>
+                        <div
+                          style={{
+                            background: hayConflicto ? "#fff3cd" : "#d4edda",
+                            border: `1px solid ${hayConflicto ? "#ffeeba" : "#c3e6cb"}`,
+                            padding: "12px",
+                            borderRadius: "8px",
+                            marginBottom: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                          }}
+                        >
+                          <span style={{ fontSize: "1.5rem" }}>
+                            {hayConflicto ? "⚡" : "🤝"}
+                          </span>
                           <div>
-                            <strong style={{ color: hayConflicto ? "#856404" : "#155724" }}>
-                              Radar de Comité: {hayConflicto ? "Alta Tensión Detectada" : "Alineación Detectada"}
+                            <strong
+                              style={{
+                                color: hayConflicto ? "#856404" : "#155724",
+                              }}
+                            >
+                              Radar de Comité:{" "}
+                              {hayConflicto
+                                ? "Alta Tensión Detectada"
+                                : "Alineación Detectada"}
                             </strong>
-                            <p style={{ margin: "5px 0 0 0", fontSize: "0.85rem", color: "var(--text-light)" }}>
-                              {hayConflicto 
-                                ? "Los otros roles tienen prioridades opuestas. Cualquier decisión generará fricción y sobrecostos." 
+                            <p
+                              style={{
+                                margin: "5px 0 0 0",
+                                fontSize: "0.85rem",
+                                color: "var(--text-light)",
+                              }}
+                            >
+                              {hayConflicto
+                                ? "Los otros roles tienen prioridades opuestas. Cualquier decisión generará fricción y sobrecostos."
                                 : "Los otros roles parecen coincidir en su evaluación. Es un buen momento para buscar el consenso."}
                             </p>
                           </div>
@@ -649,8 +685,10 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
                     {/* --- FIN RADAR --- */}
 
                     {ev.opciones.map((op, idx) => {
-                      const tieneRiesgo = Object.values(op.impactos).some(imp => typeof imp === 'object' && imp?.riesgoOculto);
-                      
+                      const tieneRiesgo = Object.values(op.impactos).some(
+                        (imp) => typeof imp === "object" && imp?.riesgoOculto,
+                      );
+
                       return (
                         <button
                           key={idx}
@@ -658,54 +696,66 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
                           onClick={() => aplicarDecision(ev, op)}
                           style={{
                             position: "relative",
-                            border: tieneRiesgo ? "2px dashed var(--warning)" : "2px solid transparent",
-                            transition: "all 0.3s ease"
+                            border: tieneRiesgo
+                              ? "2px dashed var(--warning)"
+                              : "2px solid transparent",
+                            transition: "all 0.3s ease",
                           }}
                         >
                           {/* Etiqueta de Juego Estocástico */}
                           {tieneRiesgo && (
-                            <div style={{
-                              position: "absolute",
-                              top: "-12px",
-                              right: "15px",
-                              background: "var(--warning)",
-                              color: "black",
-                              padding: "4px 10px",
-                              borderRadius: "12px",
-                              fontSize: "0.75rem",
-                              fontWeight: "bold",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "5px",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-                            }}>
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "-12px",
+                                right: "15px",
+                                background: "var(--warning)",
+                                color: "black",
+                                padding: "4px 10px",
+                                borderRadius: "12px",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                              }}
+                            >
                               🎲 Apuesta Estocástica
                             </div>
                           )}
 
-                          <h3 style={{ marginTop: tieneRiesgo ? "10px" : "0" }}>{op.texto}</h3>
-                          
+                          <h3 style={{ marginTop: tieneRiesgo ? "10px" : "0" }}>
+                            {op.texto}
+                          </h3>
+
                           {/* Visualización de Impactos Mejorada */}
-                          <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "8px",
-                            marginTop: "15px",
-                            background: "var(--light)",
-                            padding: "10px",
-                            borderRadius: "6px"
-                          }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: "8px",
+                              marginTop: "15px",
+                              background: "var(--light)",
+                              padding: "10px",
+                              borderRadius: "6px",
+                            }}
+                          >
                             <div style={{ fontSize: "0.85rem" }}>
-                              ⏱ <strong>Tiempo:</strong> {formatearImpacto(op.impactos.tiempo)}
+                              ⏱ <strong>Tiempo:</strong>{" "}
+                              {formatearImpacto(op.impactos.tiempo)}
                             </div>
                             <div style={{ fontSize: "0.85rem" }}>
-                              💰 <strong>Costo:</strong> {formatearImpacto(op.impactos.presupuesto)}
+                              💰 <strong>Costo:</strong>{" "}
+                              {formatearImpacto(op.impactos.presupuesto)}
                             </div>
                             <div style={{ fontSize: "0.85rem" }}>
-                              🛡 <strong>Riesgo:</strong> {formatearImpacto(op.impactos.riesgo)}
+                              🛡 <strong>Riesgo:</strong>{" "}
+                              {formatearImpacto(op.impactos.riesgo)}
                             </div>
                             <div style={{ fontSize: "0.85rem" }}>
-                              🤝 <strong>Satisfacc:</strong> {formatearImpacto(op.impactos.satisfaccion)}
+                              🤝 <strong>Satisfacc:</strong>{" "}
+                              {formatearImpacto(op.impactos.satisfaccion)}
                             </div>
                           </div>
                         </button>
@@ -1036,3 +1086,4 @@ function PantallaCierre({ estado, resultado, reiniciar, enviarDrive }) {
 }
 
 export default App;
+

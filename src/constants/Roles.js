@@ -1,4 +1,4 @@
-export const ROLES = {
+﻿export const ROLES = {
   DIRECTOR: "director",
   PLANIFICACION: "planificacion",
   CALIDAD: "calidad",
@@ -6,9 +6,9 @@ export const ROLES = {
 
 export const ROLES_DEF = {
   [ROLES.DIRECTOR]: {
-    nombre: "Director del Proyecto",
+    nombre: "Director de Proyecto",
     descripcion:
-      "Integra al equipo y toma decisiones críticas para que el proyecto avance.",
+      "Lidera al equipo y toma decisiones estratégicas para que el proyecto alcance sus hitos.",
     sesgo: "avance", // Prioriza continuidad
     probabilidades: {
       principal: 0.5,
@@ -18,9 +18,9 @@ export const ROLES_DEF = {
     },
   },
   [ROLES.PLANIFICACION]: {
-    nombre: "Responsable de Planificación y Control",
+    nombre: "Gerente de Planificación",
     descripcion:
-      "Protege el presupuesto, vigila el cronograma y mitiga riesgos operativos.",
+      "Garantiza el uso eficiente del presupuesto y controla el cronograma ante desvíos.",
     sesgo: "control", // Prioriza costo, tiempo y reducción de riesgo
     probabilidades: {
       principal: 0.5,
@@ -30,9 +30,9 @@ export const ROLES_DEF = {
     },
   },
   [ROLES.CALIDAD]: {
-    nombre: "Responsable de Interesados y Calidad",
+    nombre: "Experto en Stakeholders",
     descripcion:
-      "Asegura la satisfacción del cliente, la adopción y la calidad técnica.",
+      "Asegura el cumplimiento de los estándares y mantiene la alta satisfacción de los inversores.",
     sesgo: "calidad_valor", // Prioriza la aceptación y calidad
     probabilidades: {
       principal: 0.5,
@@ -51,13 +51,4 @@ export const ETIQUETAS = {
   EQUILIBRADA: "equilibrada",
   STAKEHOLDERS: "orientada_a_stakeholders",
   RIESGO: "arriesgada",
-};
-
-export const METRICAS_INICIALES = {
-  tiempoRestante: 12,
-  presupuestoRestante: 150000,
-  calidadProyecto: 100,
-  riesgoProyecto: 20,
-  satisfaccionStakeholders: 80,
-  avanceProyecto: 0,
 };
