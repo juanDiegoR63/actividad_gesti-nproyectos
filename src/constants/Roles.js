@@ -44,11 +44,11 @@ export const ROLES_DEF = {
 };
 
 export const ETIQUETAS = {
-  CONSERVADORA: "conservadora",
-  AGRESIVA: "agresiva",
-  CALIDAD: "orientada_a_calidad",
-  CONTROL: "orientada_a_control",
-  EQUILIBRADA: "equilibrada",
-  STAKEHOLDERS: "orientada_a_stakeholders",
-  RIESGO: "arriesgada",
+  CONSERVADORA: "[Defensa Conservadora]",
+  AGRESIVA: "[Ataque Agresivo]",
+  CALIDAD: "[Hechizo de Calidad]",
+  CONTROL: "[Control de Terreno]",
+  EQUILIBRADA: "[Postura Equilibrada]",
+  STAKEHOLDERS: "[Carisma de Gremio]",
+  RIESGO: "[Danza de Espadas Arriesgada]",
 };
