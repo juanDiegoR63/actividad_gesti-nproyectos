@@ -10,12 +10,9 @@ export function GameScreen({ engine }) {
   const {
     estado,
     setEstado,
-    combateModifiers,
     ultimoResultadoVotacion,
     setUltimoResultadoVotacion,
     toastMessage,
-    activarMuroContencion,
-    activarPurificacion,
     aplicarDecision,
     reiniciarProyecto,
   } = engine;
@@ -55,12 +52,7 @@ export function GameScreen({ engine }) {
       </div>
 
       <main className="rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
-        <HUD
-          estado={estado}
-          activatingMuro={activarMuroContencion}
-          activatingPurificacion={activarPurificacion}
-          muroContencion={combateModifiers.muroContencion}
-        />
+        <HUD estado={estado} />
 
         <CouncilRoom
           estado={estado}

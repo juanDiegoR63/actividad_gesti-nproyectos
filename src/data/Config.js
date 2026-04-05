@@ -9,10 +9,12 @@
 
 export const METRICAS_INICIALES = {
   ap: 12, // AP (Puntos de Acción - Tiempo)
-  hp: 150000, // HP (Vida - Presupuesto $)
+  hp: 150000000, // HP (Vida - Presupuesto $)
   ac: 100, // AC (Clase de Armadura - Calidad)
   falloCritico: 20, // Fallo Crítico (Riesgo %)
-  mp: 80, // MP (Maná/Influencia - Satisfacción %)
+  reservaGestion: 0, // Reserva de Contingencia ($)
+  puntosAgile: 0, // Quilts
+  puntosPredictivo: 0, // Puzzles
   avanceProyecto: 0,
 };
 

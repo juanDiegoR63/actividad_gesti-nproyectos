@@ -18,7 +18,6 @@ export class AgentEngine {
       case ROLES.DIRECTOR:
         return {
           ap: state.ap,
-          mp: state.mp,
           falloCritico: state.falloCritico,
         };
       case ROLES.PLANIFICACION:
@@ -30,7 +29,6 @@ export class AgentEngine {
       case ROLES.CALIDAD:
         return {
           ac: state.ac,
-          mp: state.mp,
           falloCritico: state.falloCritico,
         };
       default:
@@ -71,21 +69,18 @@ export class AgentEngine {
         hp: 15 / baseBudget, // Equivalent to 15 / 150000 = 0.0001
         ac: 0.5,
         falloCritico: -1.0,
-        mp: 1.5,
       },
       [ROLES.PLANIFICACION]: {
         ap: 1.5,
         hp: 30 / baseBudget, // Equivalent to 30 / 150000 = 0.0002
         ac: 0.3,
         falloCritico: -2.0, // Alta aversión al riesgo
-        mp: 0.5,
       },
       [ROLES.CALIDAD]: {
         ap: 0.5,
         hp: 7.5 / baseBudget, // Equivalent to 7.5 / 150000 = 0.00005
         ac: 2.5, // Mayor peso a calidad
         falloCritico: -1.5,
-        mp: 2.0,
       },
     };
 
@@ -219,8 +214,8 @@ export class AgentEngine {
   // Nueva función de mitigación (Armadura)
   mitigarDanio(dañoBase, ac) {
     if (dañoBase >= 0) return dañoBase; // No es daño
-    const multiplicador = 1 - ac / 200;
-    return Math.round(dañoBase * Math.max(0.1, multiplicador)); // No mitigar más del 90%
+    const multiplicador = 100 / (100 + ac);
+    return Math.round(dañoBase * multiplicador);
   }
 
   // Resuelve los impactos estocásticos (ejecuta el "dado" para riesgos ocultos)

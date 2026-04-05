@@ -21,7 +21,7 @@ export function CouncilRoom({ estado, ultimoResultadoVotacion }) {
       case "director":
         return estado.ap < METRICAS_INICIALES.ap * 0.3;
       case "planificacion":
-        return estado.hp < METRICAS_INICIALES.hp * 0.3;
+        return estado.hp < 30000000;
       case "calidad":
         return estado.ac < 40; // Calidad stress at < 40 AC
       default:
@@ -74,12 +74,26 @@ export function CouncilRoom({ estado, ultimoResultadoVotacion }) {
                   >
                     "{voteData.opcion?.texto || "..."}"
                   </div>
+                  {inCrisis && (
+                    <div className="font-bold text-red-500 bg-red-900/40 p-1 mb-1 text-center border border-red-700 text-xs rounded animate-pulse">
+                      ¡NIVEL DE PÁNICO CRÍTICO!
+                    </div>
+                  )}
                   {voteData.razonamiento && (
                     <>
                       <div className="font-semibold text-green-400 mb-1">
                         Razonamiento:
                       </div>
                       <div className="text-gray-400 italic text-[11px] leading-tight break-words">
+                        {inCrisis && rolId === "planificacion"
+                          ? "¡Estamos al borde de la quiebra, no gasten un peso más! :: "
+                          : ""}
+                        {inCrisis && rolId === "director"
+                          ? "¡No hay tiempo, debemos cerrar rápido o perderemos por retrasos! :: "
+                          : ""}
+                        {inCrisis && rolId === "calidad"
+                          ? "¡La deuda técnica nos está matando, no podemos ceder más calidad! :: "
+                          : ""}
                         {voteData.razonamiento}
                       </div>
                     </>

@@ -35,31 +35,6 @@ export function useProjectEngine() {
     }, timeout);
   };
 
-  const activarMuroContencion = () => {
-    if (estado.mp >= 20) {
-      setEstado((prev) => ({ ...prev, mp: prev.mp - 20 }));
-      setCombateModifiers((prev) => ({ ...prev, muroContencion: true }));
-      showToast(
-        "🛡️ Muro de Contención activado: Ignoras el próximo daño a HP.",
-      );
-    } else {
-      showToast("No tienes suficiente MP (20 requeridos).");
-    }
-  };
-
-  const activarPurificacion = () => {
-    if (estado.mp >= 15) {
-      setEstado((prev) => ({
-        ...prev,
-        mp: prev.mp - 15,
-        falloCritico: Math.max(0, prev.falloCritico - 10),
-      }));
-      showToast("✨ Purificación lanzada: El Fallo Crítico se reduce en 10%.");
-    } else {
-      showToast("No tienes suficiente MP (15 requeridos).");
-    }
-  };
-
   const evaluarFinal = () => {
     const p = estado;
 
@@ -73,12 +48,11 @@ export function useProjectEngine() {
     }
 
     let puntaje = 0;
-    // Cálculo proporcional (máximo 20 puntos por métrica para un total de 100)
-    puntaje += Math.max(0, Math.min(20, (p.ap / METRICAS_INICIALES.ap) * 20));
-    puntaje += Math.max(0, Math.min(20, (p.hp / METRICAS_INICIALES.hp) * 20));
-    puntaje += Math.max(0, Math.min(20, (p.ac / 100) * 20));
-    puntaje += Math.max(0, Math.min(20, ((100 - p.falloCritico) / 100) * 20));
-    puntaje += Math.max(0, Math.min(20, (p.mp / 100) * 20));
+    // Cálculo proporcional (máximo 25 puntos por métrica para un total de 100)
+    puntaje += Math.max(0, Math.min(25, (p.ap / METRICAS_INICIALES.ap) * 25));
+    puntaje += Math.max(0, Math.min(25, (p.hp / METRICAS_INICIALES.hp) * 25));
+    puntaje += Math.max(0, Math.min(25, (p.ac / 100) * 25));
+    puntaje += Math.max(0, Math.min(25, ((100 - p.falloCritico) / 100) * 25));
 
     puntaje = Math.round(puntaje);
 
@@ -92,7 +66,7 @@ export function useProjectEngine() {
 
     let veredicto, mensaje;
     if (puntaje >= 85) {
-      veredicto = `CERTIFICACIÓN PMP - ${valorAgile ? "Maestros de la Colcha" : "Arquitectos del Puzzle"}`;
+      veredicto = `CERTIFICACIÓN PMP - ${valorAgile ? "Líderes Ágiles" : "Líderes Predictivos"}`;
       mensaje =
         "El proyecto fue gestionado magistralmente. Desbloqueaste nuevas habilidades pasivas para futuras partidas por tu impecable historial corporativo.";
     } else if (puntaje >= 70) {
@@ -141,7 +115,6 @@ Presupuesto Restante: $${estado.hp}
 Tiempo Restante: ${estado.ap} Semanas
 Calidad Alcanzada: ${estado.ac}%
 Riesgo Final: ${estado.falloCritico}%
-Satisfacción: ${estado.mp}%
 
 --------------------------------------------------
 HISTORIAL DE DECISIONES:
@@ -216,7 +189,7 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     // Determinar qué rol está votando (el del evento actual)
     const rolDelEvento = evento.rol;
 
-    // Los otros dos roles votan automáticamente
+    // Los otros dos roles votan automáticamente/por consenso
     const todosLosRoles = [ROLES.DIRECTOR, ROLES.PLANIFICACION, ROLES.CALIDAD];
     const otrosRoles = todosLosRoles.filter((r) => r !== rolDelEvento);
 
@@ -224,9 +197,12 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     const votos = {};
 
     // El voto del jugador humano (o auto si es IA)
+    let opcionActivaElegida = opcionVotadaPorJugador;
+
     if (estado.rolesAsignados[rolDelEvento]?.tipo === "auto") {
       // Si es automático, usar deciderOpcionAutomatica
       const votoAuto = deciderOpcionAutomatica(evento.opciones, rolDelEvento);
+      opcionActivaElegida = votoAuto;
       votos[rolDelEvento] = {
         opcion: votoAuto,
         razonamiento: "Decisión automática basada en sesgo del rol",
@@ -241,10 +217,17 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
 
     // Los otros roles votan usando AgentEngine con utilidad esperada (o son persuadidos)
     otrosRoles.forEach((rol) => {
+      const esHumano = estado.rolesAsignados[rol]?.tipo === "humano";
+
       if (seleccionesPersuasion.includes(rol)) {
         votos[rol] = {
-          opcion: opcionVotadaPorJugador,
+          opcion: opcionActivaElegida,
           razonamiento: "Obligado por habilidad de Persuasión 🗣️",
+        };
+      } else if (esHumano) {
+        votos[rol] = {
+          opcion: opcionActivaElegida,
+          razonamiento: "Consenso de equipo.",
         };
       } else {
         const resultado = engine.emitirVoto(evento.opciones, rol);
@@ -283,7 +266,6 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
       hp: 0,
       ac: 0,
       falloCritico: 0,
-      mp: 0,
     };
     let mensajeResolucion;
 
@@ -298,13 +280,13 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     if (maxVotos === 3) {
       tipoResolucion = "unanimidad";
       opcionGanadora = resultadosOrdenados[0].opcion;
-      penalizacion = { ac: 5, falloCritico: -5, mp: 10 };
-      mensajeResolucion = `¡Combo de Equipo! Unanimidad. +10 MP, +5 AC, -5 Fallo Crítico.`;
+      penalizacion = { ac: 5, falloCritico: -5 };
+      mensajeResolucion = `¡Combo de Equipo! Unanimidad. +5 AC, -5 Fallo Crítico.`;
     } else if (maxVotos === 2) {
       tipoResolucion = "mayoria";
       opcionGanadora = resultadosOrdenados[0].opcion;
-      penalizacion = { hp: -2000 };
-      mensajeResolucion = `Mayoría: Fricción en el grupo causa -2000 HP.`;
+      penalizacion = { hp: -(estado.hp * 0.05) };
+      mensajeResolucion = `Mayoría: Fricción en el grupo causa pérdida del 5% del Presupuesto (HP).`;
     } else {
       tipoResolucion = "empate";
       opcionGanadora = votos[ROLES.DIRECTOR].opcion;
@@ -359,6 +341,23 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
         nuevoAp = 0; // O regenerar parcialmente
       }
 
+      // Dynamic tag counting for Agile and Predictive
+      let addedAgile = 0;
+      let addedPredictive = 0;
+      if (opcionGanadora.etiquetas) {
+        if (
+          opcionGanadora.etiquetas.includes("[Ataque Agresivo]") ||
+          opcionGanadora.etiquetas.includes("[Carisma de Gremio]")
+        )
+          addedAgile = 1;
+        if (
+          opcionGanadora.etiquetas.includes("[Control de Terreno]") ||
+          opcionGanadora.etiquetas.includes("[Defensa Conservadora]") ||
+          opcionGanadora.etiquetas.includes("[Economía de Recursos]")
+        )
+          addedPredictive = 1;
+      }
+
       const historicoM = {
         id: evento.id,
         evento: evento.titulo,
@@ -377,10 +376,30 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
 
       setUltimoResultadoVotacion(votos);
 
+      let reservaGanada = impactosFinales.reservaGestion || 0;
+      let newReserva = (prev.reservaGestion || 0) + reservaGanada;
+      let totalHpDamage = hpImpact + ataqueOportunidadHp;
+      let actualHpDamage = 0;
+
+      if (totalHpDamage < 0) {
+        if (newReserva >= Math.abs(totalHpDamage)) {
+          newReserva += totalHpDamage;
+          actualHpDamage = 0;
+        } else {
+          actualHpDamage = totalHpDamage + newReserva;
+          newReserva = 0;
+        }
+      } else {
+        actualHpDamage = totalHpDamage;
+      }
+
       return {
         ...prev,
         ap: nuevoAp,
-        hp: prev.hp + hpImpact + ataqueOportunidadHp,
+        hp: prev.hp + actualHpDamage,
+        reservaGestion: newReserva,
+        puntosAgile: (prev.puntosAgile || 0) + addedAgile,
+        puntosPredictivo: (prev.puntosPredictivo || 0) + addedPredictive,
         ac: Math.min(
           100,
           Math.max(
@@ -395,16 +414,6 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
             prev.falloCritico +
               (impactosFinales.falloCritico || 0) +
               (penalizacion.falloCritico || 0),
-          ),
-        ),
-        mp: Math.min(
-          100,
-          Math.max(
-            0,
-            prev.mp +
-              (impactosFinales.mp || 0) +
-              (penalizacion.mp || 0) -
-              gastoPersuasion,
           ),
         ),
         historico: [...prev.historico, historicoM],
@@ -424,8 +433,6 @@ ${estado.historico.map((h) => `- [${ROLES_DEF[h.rol]?.nombre || h.rol} (${estado
     nombresForm,
     setNombresForm,
     toastMessage,
-    activarMuroContencion,
-    activarPurificacion,
     evaluarFinal,
     enviarDrive,
     reiniciarProyecto,

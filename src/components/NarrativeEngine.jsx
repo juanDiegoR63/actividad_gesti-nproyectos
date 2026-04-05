@@ -1,34 +1,50 @@
-﻿import React, { useState } from "react";
+﻿import React from "react";
 import { ROLES_DEF } from "../constants/Roles";
 
 export function NarrativeEngine({ evento, estado, onSelectOption }) {
-  const [seleccionesPersuasion, setSeleccionesPersuasion] = useState([]);
-
   if (!evento) return null;
 
   const rolActual = evento.rol;
   const nombreRol = estado.rolesAsignados[rolActual]?.nombre || "Sistema";
 
-  const renderImpacto = (imp) => {
-    if (typeof imp === "number") return imp;
-    if (imp?.riesgoOculto?.prob) {
-      return `${imp.base || 0} (${imp.riesgoOculto.prob}%: ${imp.riesgoOculto.impacto})`;
-    }
-    return imp?.base || 0;
-  };
+  const renderImpacto = (imp, metrica) => {
+    if (!imp && imp !== 0) return "0";
+    let base = typeof imp === "number" ? imp : imp?.base || 0;
 
-  const tooglePersuasion = (rol) => {
-    if (seleccionesPersuasion.includes(rol)) {
-      setSeleccionesPersuasion(seleccionesPersuasion.filter((r) => r !== rol));
-    } else {
-      setSeleccionesPersuasion([...seleccionesPersuasion, rol]);
-    }
-  };
+    const getRango = (val) => {
+      const abs = Math.abs(val);
+      if (metrica === "hp") {
+        if (abs >= 40000000)
+          return val < 0 ? "PÉRDIDA MASIVA" : "GANANCIA MASIVA";
+        if (abs >= 10000000) return val < 0 ? "PÉRDIDA ALTA" : "GANANCIA ALTA";
+        if (abs >= 2000000) return val < 0 ? "PÉRDIDA MEDIA" : "GANANCIA MEDIA";
+        if (abs > 0) return val < 0 ? "PÉRDIDA BAJA" : "GANANCIA BAJA";
+      } else {
+        if (abs >= 15) return val < 0 ? "MUY NEGATIVO" : "MUY POSITIVO";
+        if (abs >= 5) return val < 0 ? "NEGATIVO" : "POSITIVO";
+        if (abs > 0) return val < 0 ? "LEVE" : "LEVE/MODERADO";
+      }
+      return "NULO";
+    };
 
-  // Bot que no sean de este humano
-  const rolesIA = Object.entries(estado.rolesAsignados).filter(
-    ([r, asig]) => asig.tipo === "auto",
-  );
+    let p = base;
+    if (typeof imp === "object" && imp.riesgoOculto?.prob) {
+      p = `${base} (${imp.riesgoOculto.prob}%: ${imp.riesgoOculto.impacto})`;
+    }
+
+    // Role-based visibility
+    if (
+      rolActual === "director" &&
+      (metrica === "ap" || metrica === "falloCritico")
+    )
+      return p;
+    if (rolActual === "planificacion" && (metrica === "hp" || metrica === "ap"))
+      return p;
+    if (rolActual === "calidad" && metrica === "ac") return p;
+
+    // Secret for others
+    return `[${getRango(base)}]`;
+  };
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-full mb-6">
@@ -52,81 +68,56 @@ export function NarrativeEngine({ evento, estado, onSelectOption }) {
         <p className="text-sm text-gray-400">
           Por favor, discutan y elige tu postura final.
         </p>
-
-        {rolesIA.length > 0 && (
-          <div className="mt-4 p-3 bg-gray-800 border border-indigo-900/50 rounded">
-            <h5 className="text-indigo-400 font-bold text-sm mb-2">
-              Habilidad de Persuasión 🗣️
-            </h5>
-            <p className="text-xs text-gray-400 mb-2">
-              Gasta 15 MP para obligar a un miembro de la IA a alinearse con tu
-              voto.
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              {rolesIA.map(([r, asig]) => {
-                const isSelected = seleccionesPersuasion.includes(r);
-                return (
-                  <button
-                    key={r}
-                    onClick={() => tooglePersuasion(r)}
-                    disabled={
-                      estado.mp <
-                      (seleccionesPersuasion.length + (isSelected ? 0 : 1)) * 15
-                    }
-                    className={`text-xs px-2 py-1 border rounded transition ${isSelected ? "bg-indigo-600 border-indigo-400 text-white" : "bg-gray-700 border-gray-500 text-gray-300 hover:bg-gray-600"}`}
-                  >
-                    {isSelected ? "✓ " : ""}
-                    {ROLES_DEF[r].nombre}
-                  </button>
-                );
-              })}
-            </div>
-            {seleccionesPersuasion.length > 0 && (
-              <p className="text-xs text-rose-300 mt-2">
-                Costo total de persuasión: {seleccionesPersuasion.length * 15}{" "}
-                MP
-              </p>
-            )}
-          </div>
-        )}
       </div>
 
-      <div className="space-y-3">
-        {evento.opciones.map((opcion, index) => {
-          return (
-            <button
-              key={index}
-              onClick={() =>
-                onSelectOption(evento, opcion, seleccionesPersuasion)
-              }
-              className="w-full text-left p-4 bg-gray-700 hover:bg-gray-600 rounded cursor-pointer transition-all border border-gray-600 hover:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              <div className="font-semibold text-gray-100 flex items-center justify-between">
-                <span>{opcion.texto}</span>
-              </div>
-              <div className="mt-2 text-sm text-gray-400 font-mono">
-                Impactos: [ HP: {renderImpacto(opcion.impactos.hp)} | MP:{" "}
-                {renderImpacto(opcion.impactos.mp)} | AC:{" "}
-                {renderImpacto(opcion.impactos.ac)} | AP:{" "}
-                {renderImpacto(opcion.impactos.ap)} | Riesgo:{" "}
-                {renderImpacto(opcion.impactos.falloCritico)} ]
-              </div>
-              {opcion.etiquetas && opcion.etiquetas.length > 0 && (
-                <div className="mt-2 flex gap-1">
-                  {opcion.etiquetas.map((t, idx) => (
-                    <span
-                      key={idx}
-                      className="text-xs bg-gray-900 text-gray-500 px-1.5 py-0.5 rounded border border-gray-700"
-                    >
-                      {t}
-                    </span>
-                  ))}
+      {estado.rolesAsignados[rolActual]?.tipo === "auto" ? (
+        <div className="bg-indigo-900/20 p-6 rounded-lg border border-indigo-500 text-center">
+          <p className="text-indigo-300 mb-4 font-semibold">
+            🤖 La IA está analizando la mejor opción según su rol...
+          </p>
+          <button
+            onClick={() => onSelectOption(evento, null)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg border border-indigo-400 cursor-pointer"
+          >
+            Procesar Decisión Automática
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {evento.opciones.map((opcion, index) => {
+            return (
+              <button
+                key={index}
+                onClick={() => onSelectOption(evento, opcion)}
+                className="w-full text-left p-4 bg-gray-700 hover:bg-gray-600 rounded cursor-pointer transition-all border border-gray-600 hover:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              >
+                <div className="font-semibold text-gray-100 flex items-center justify-between">
+                  <span>{opcion.texto}</span>
                 </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
+                <div className="mt-2 text-sm text-gray-400 font-mono">
+                  Impactos: [ HP: {renderImpacto(opcion.impactos.hp, "hp")} |
+                  AC: {renderImpacto(opcion.impactos.ac, "ac")} | AP:{" "}
+                  {renderImpacto(opcion.impactos.ap, "ap")} | Riesgo:{" "}
+                  {renderImpacto(opcion.impactos.falloCritico, "falloCritico")}{" "}
+                  ]
+                </div>
+                {opcion.etiquetas && opcion.etiquetas.length > 0 && (
+                  <div className="mt-2 flex gap-1">
+                    {opcion.etiquetas.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs bg-gray-900 text-gray-500 px-1.5 py-0.5 rounded border border-gray-700"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
