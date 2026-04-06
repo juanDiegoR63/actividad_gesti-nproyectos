@@ -73,6 +73,31 @@ export const actionCatalog: DecisionOption[] = [
     narrativeResult: "El proyecto avanza, pero se incrementa deuda de control.",
   },
   {
+    id: "executive_war_room",
+    actorRole: "director",
+    title: "War room ejecutivo",
+    summary: "Orquesta respuesta transversal para estabilizar varios frentes a la vez.",
+    description:
+      "Convoca liderazgo clave para coordinar decisiones simultaneas de alcance, riesgo y alineacion.",
+    tags: ["integration", "scope", "control", "multi_target"],
+    glossaryKeys: ["scope", "risk", "stakeholder"],
+    requirements: { budget: 8, time: 2 },
+    baseEffects: {
+      project: { budget: -2, time: -1, risk: -3, progress: 4 },
+      allEnemies: { hp: -8, threat: -2 },
+      actor: { stress: 9 },
+    },
+    debtEffects: {
+      project: { risk: 12, quality: -6, progress: -3 },
+      actor: { stress: 11 },
+    },
+    roleScaling: { director: 1.18, planning: 1, quality: 1 },
+    luckProfile: "high",
+    targetMode: "all",
+    narrativeResult:
+      "Se reduce la presion multi-frente, pero la coordinacion ejecutiva consume capacidad critica.",
+  },
+  {
     id: "replan_schedule",
     actorRole: "planning",
     title: "Replanificar cronograma",
@@ -207,6 +232,31 @@ export const actionCatalog: DecisionOption[] = [
     luckProfile: "low",
     targetMode: "single",
     narrativeResult: "La gobernanza mejora y baja incertidumbre de control.",
+  },
+  {
+    id: "mass_quality_sweep",
+    actorRole: "quality",
+    title: "Barrido de calidad masivo",
+    summary: "Ataca defectos sistemicos en paralelo sobre todos los frentes abiertos.",
+    description:
+      "Refuerza criterios de aceptacion y auditoria cruzada para recortar riesgo en multiples amenazas.",
+    tags: ["quality", "risk", "control", "multi_target"],
+    glossaryKeys: ["quality", "risk", "lessons"],
+    requirements: { budget: 5, time: 2, minQuality: 40 },
+    baseEffects: {
+      project: { budget: -1, time: -1, quality: 4, risk: -4, progress: 2 },
+      allEnemies: { hp: -6, threat: -2 },
+      actor: { stress: 8 },
+    },
+    debtEffects: {
+      project: { risk: 10, quality: -4, progress: -3 },
+      actor: { stress: 10 },
+    },
+    roleScaling: { director: 1, planning: 1, quality: 1.18 },
+    luckProfile: "normal",
+    targetMode: "all",
+    narrativeResult:
+      "El frente de calidad se fortalece en conjunto, aunque el equipo paga el costo operativo inmediato.",
   },
   {
     id: "improvise_scope",

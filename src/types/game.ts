@@ -83,6 +83,7 @@ export type TeamMember = {
   id: string;
   name: string;
   role: CharacterRole;
+  isBaseMember: boolean;
   assignedRole: CharacterRole;
   cosmetic: CharacterCosmetic;
   energy: number;
@@ -94,6 +95,38 @@ export type TeamMember = {
   recklessDecisionCount: number;
   decisionDebtCount: number;
   disciplinaryStrikes: number;
+};
+
+export type StaffingDismissalCause =
+  | "energy_collapse"
+  | "stress_resignation"
+  | "disciplinary_exit"
+  | "incident_impact"
+  | "unknown";
+
+export type StaffingCrisisSource =
+  | "ally_turn"
+  | "enemy_turn"
+  | "incident"
+  | "discipline"
+  | "mixed";
+
+export type StaffingDismissalRecord = {
+  memberId: string;
+  memberName: string;
+  role: CharacterRole;
+  assignedRole: CharacterRole;
+  cause: StaffingDismissalCause;
+};
+
+export type StaffingCrisisEvent = {
+  id: string;
+  turnNumber: number;
+  source: StaffingCrisisSource;
+  severity: "medium" | "high";
+  vacantRoles: CharacterRole[];
+  dismissedMembers: StaffingDismissalRecord[];
+  summary: string;
 };
 
 export type EnemyIntentType =
@@ -111,7 +144,10 @@ export type EnemyIntentType =
   | "misalignment"
   | "audit_ping"
   | "shadow_scope"
-  | "passive_penalty";
+  | "passive_penalty"
+  | "critical_defect"
+  | "funding_cut"
+  | "multi_front_escalation";
 
 export type EnemyIntent = {
   type: EnemyIntentType;

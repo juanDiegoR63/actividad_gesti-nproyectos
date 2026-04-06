@@ -414,7 +414,7 @@ function getLuckProfileBadge(luckProfile) {
     return "BAJA";
   }
 
-  return "NORMAL";
+  return null;
 }
 
 function getLuckProfileLabel(luckProfile) {
@@ -429,13 +429,34 @@ function getLuckProfileLabel(luckProfile) {
   return "normal";
 }
 
+function getLuckProfileExplanation(luckProfile) {
+  if (luckProfile === "high") {
+    return "Alta: mas variacion aleatoria (puede ayudar o perjudicar).";
+  }
+
+  if (luckProfile === "low") {
+    return "Baja: menor variacion aleatoria y resultado mas estable.";
+  }
+
+  return "Normal: variacion moderada sin dominar el efecto base.";
+}
+
 function buildActionTooltip(option, hasDebt) {
   const selectedEffects = hasDebt && option.debtEffects ? option.debtEffects : option.baseEffects;
   const lines = buildIconConsequenceList(selectedEffects, 4);
   const header = hasDebt ? "Consecuencias esperadas (con deuda):" : "Consecuencias esperadas:";
-  const luck = `Suerte: ${getLuckProfileLabel(option.luckProfile)}`;
+  const luck = `Suerte: ${getLuckProfileLabel(option.luckProfile)}. ${getLuckProfileExplanation(option.luckProfile)}\nLa suerte agrega variacion contextual y nunca reemplaza los efectos base de la accion.`;
   const body = lines.length ? lines.join("\n") : "[*] Sin variacion numerica relevante";
-  return `${header}\n${body}\n\n${luck}`;
+  const sections = [
+    option.title,
+    option.summary ? `Resumen: ${option.summary}` : null,
+    option.description ? `Descripcion: ${option.description}` : null,
+    `${header}\n${body}`,
+    luck,
+    hasDebt ? "Advertencia: esta accion se ejecuta con deuda." : null,
+  ].filter(Boolean);
+
+  return sections.join("\n\n");
 }
 
 function drawLuckClover(graphics, x, y, size, color) {
@@ -468,6 +489,12 @@ function truncateText(text, maxChars) {
   }
 
   return `${text.slice(0, Math.max(0, maxChars - 3)).trim()}...`;
+}
+
+function estimateCharsPerLine(pixelWidth, fontSize) {
+  const safeWidth = Math.max(1, pixelWidth || 1);
+  const safeFontSize = Math.max(1, fontSize || 1);
+  return Math.max(8, Math.floor(safeWidth / (safeFontSize * 0.62)));
 }
 
 function buildIntentTooltip(enemy) {
@@ -1087,7 +1114,8 @@ export class BattleScene {
     const luckPolarity = snapshot?.lastLuckPolarity ?? null;
     const luckLabel = snapshot?.lastLuckLabel ?? null;
     let luckBadge = null;
-    if (luckPolarity && luckLabel) {
+    const entryHasLuck = typeof entry?.text === "string" && entry.text.includes("Suerte:");
+    if (luckPolarity && luckLabel && entryHasLuck) {
       const luckColor = luckPolarity === "positive" ? 0x22c55e : 0xef4444;
       const luckBadgeX = textX;
       const luckBadgeY = Math.max(ribbonY + 16, body.y + body.height + 8);
@@ -1655,6 +1683,7 @@ export class BattleScene {
     badge,
     onTap,
     disabled = false,
+    subtitleTooltipText,
   }) {
     const container = new Container();
     container.x = x;
@@ -1674,23 +1703,32 @@ export class BattleScene {
 
     const contentWrapWidth = width - (badge ? 82 : 16);
     const hasConsequenceContent = consequenceLines.length > 0;
-    const charsPerLine = Math.max(14, Math.floor(contentWrapWidth / 5.4));
-    const titleText = hasConsequenceContent ? truncateText(label, charsPerLine + 8) : label;
+    const titleFontSize = Math.max(8, Math.round(10 * CANVAS_UI_SCALE));
+    const subtitleFontSize = Math.max(7, Math.round(8 * CANVAS_UI_SCALE));
+    const consequenceFontSize = Math.max(7, Math.round(7 * CANVAS_UI_SCALE));
+    const titleCharsPerLine = estimateCharsPerLine(contentWrapWidth, titleFontSize);
+    const subtitleCharsPerLine = estimateCharsPerLine(contentWrapWidth, subtitleFontSize);
+    const consequenceCharsPerLine = estimateCharsPerLine(contentWrapWidth, consequenceFontSize);
+    const titleText = hasConsequenceContent
+      ? truncateText(label, titleCharsPerLine)
+      : truncateText(label, titleCharsPerLine * 2);
     const subtitleTextRaw = typeof subtitle === "string" ? subtitle : String(subtitle ?? "");
     const subtitleText = hasConsequenceContent
-      ? truncateText(subtitleTextRaw, charsPerLine + 10)
-      : subtitleTextRaw;
+      ? truncateText(subtitleTextRaw, subtitleCharsPerLine)
+      : truncateText(subtitleTextRaw, subtitleCharsPerLine * 2);
+    const subtitleWasTruncated = subtitleText !== subtitleTextRaw;
 
     const title = new Text({
       text: titleText,
       style: {
         fontFamily: "Courier New, monospace",
-        fontSize: Math.max(8, Math.round(10 * CANVAS_UI_SCALE)),
+        fontSize: titleFontSize,
         fill: 0xf8fafc,
         fontWeight: "700",
         align: "center",
-        wordWrap: !hasConsequenceContent,
+        wordWrap: true,
         wordWrapWidth: contentWrapWidth,
+        breakWords: true,
       },
     });
 
@@ -1700,11 +1738,12 @@ export class BattleScene {
         text: subtitleText,
         style: {
           fontFamily: "Courier New, monospace",
-          fontSize: Math.max(7, Math.round(8 * CANVAS_UI_SCALE)),
+          fontSize: subtitleFontSize,
           fill: 0x94a3b8,
           align: "center",
-          wordWrap: !hasConsequenceContent,
+          wordWrap: true,
           wordWrapWidth: contentWrapWidth,
+          breakWords: true,
         },
       });
     }
@@ -1712,14 +1751,25 @@ export class BattleScene {
     const maxConsequenceRows = hasConsequenceContent
       ? clamp(Math.floor((height - 30) / 11), 0, 3)
       : 0;
-    const consequenceNodes = consequenceLines.slice(0, maxConsequenceRows).map((line) => {
+    const displayedConsequenceLines = consequenceLines.slice(0, maxConsequenceRows).map((line) => {
+      const originalText = String(line.text ?? "");
+      const renderedText = truncateText(originalText, consequenceCharsPerLine);
+      return {
+        text: renderedText,
+        color: line.color,
+      };
+    });
+    const consequenceNodes = displayedConsequenceLines.map((line) => {
       return new Text({
-        text: truncateText(line.text, charsPerLine + 6),
+        text: line.text,
         style: {
           fontFamily: "Courier New, monospace",
-          fontSize: Math.max(7, Math.round(7 * CANVAS_UI_SCALE)),
+          fontSize: consequenceFontSize,
           fill: line.color,
           align: "center",
+          wordWrap: true,
+          wordWrapWidth: contentWrapWidth,
+          breakWords: true,
         },
       });
     });
@@ -1756,8 +1806,31 @@ export class BattleScene {
       cursorY += node.height + contentGap;
     });
 
+    const normalizedSubtitleTooltipText =
+      typeof subtitleTooltipText === "string" ? subtitleTooltipText.trim() : "";
+    const isSubtitleVisible = Boolean(subtitleNode && contentNodes.includes(subtitleNode));
+    const shouldShowSubtitleTooltip =
+      isSubtitleVisible &&
+      subtitleWasTruncated &&
+      normalizedSubtitleTooltipText.length > 0;
+
+    if (subtitleNode && shouldShowSubtitleTooltip) {
+      const showSubtitleTooltip = (event) => {
+        const point = event?.global ?? { x: x + width / 2, y: y + height / 2 };
+        this.showMetricTooltip("Descripcion completa", normalizedSubtitleTooltipText, point.x, point.y);
+      };
+
+      subtitleNode.eventMode = "static";
+      subtitleNode.cursor = "help";
+      subtitleNode.on("pointerover", showSubtitleTooltip);
+      subtitleNode.on("pointermove", showSubtitleTooltip);
+      subtitleNode.on("pointerout", () => {
+        this.hideMetricTooltip();
+      });
+    }
+
     container.addChild(bg, ...contentNodes);
-    container.interactiveChildren = false;
+    container.interactiveChildren = true;
     container.hitArea = new Rectangle(0, 0, width, height);
 
     if (badge) {
@@ -1772,10 +1845,14 @@ export class BattleScene {
       container.addChild(badgeBg, badgeText);
     }
 
-    if (!disabled && typeof onTap === "function") {
+    const isInteractive = !disabled && typeof onTap === "function";
+
+    if (isInteractive) {
       container.eventMode = "static";
       container.cursor = "pointer";
+
       container.on("pointertap", onTap);
+
       container.on("pointerover", () => {
         bg.clear();
         bg
@@ -1783,6 +1860,7 @@ export class BattleScene {
           .fill({ color: toneConfig.hover, alpha: 0.98 })
           .stroke({ width: 2, color: toneConfig.border, alpha: 1 });
       });
+
       container.on("pointerout", () => {
         bg.clear();
         bg
@@ -1793,6 +1871,10 @@ export class BattleScene {
     }
 
     contentNodes.forEach((node) => {
+      if (node === subtitleNode && shouldShowSubtitleTooltip) {
+        return;
+      }
+
       node.eventMode = "none";
     });
 
@@ -2130,6 +2212,7 @@ export class BattleScene {
     this.drawTopHud(snapshot, layout);
     this.drawIntelRail(snapshot, layout, selectedEnemyId);
     this.drawActionRail(snapshot, layout, selectedEnemyId);
+    this.drawStaffingCrisisOverlay(snapshot, layout);
     this.drawVictoryOverlay(snapshot, layout);
   }
 
@@ -2242,9 +2325,15 @@ export class BattleScene {
       role.y = 88;
 
       const barWidth = 202;
-      const energyLabel = makeCompactLabel("ENERGIA", 0x86efac);
+      const energyLabel = makeCompactLabel("HP", 0x86efac);
       energyLabel.x = 8;
       energyLabel.y = 104;
+      const hpValue = makeCompactLabel(
+        `${Math.round(member.energy)}/${Math.round(member.maxEnergy)}`,
+        0x86efac,
+      );
+      hpValue.x = 158;
+      hpValue.y = 104;
       const energyBg = new Graphics().roundRect(8, 114, barWidth, 8, 4).fill({ color: 0x1e293b, alpha: 1 });
       const energyFill = new Graphics()
         .roundRect(9, 115, Math.max(2, 200 * toPercent(member.energy, member.maxEnergy)), 6, 3)
@@ -2253,6 +2342,12 @@ export class BattleScene {
       const stressLabel = makeCompactLabel("ESTRES", 0xfda4af);
       stressLabel.x = 8;
       stressLabel.y = 134;
+      const stressValue = makeCompactLabel(
+        `${Math.round(member.stress)}/${Math.round(member.maxStress)}`,
+        0xfda4af,
+      );
+      stressValue.x = 156;
+      stressValue.y = 134;
       const stressBg = new Graphics().roundRect(8, 142, barWidth, 8, 4).fill({ color: 0x1e293b, alpha: 1 });
       const stressFill = new Graphics()
         .roundRect(9, 143, Math.max(2, 200 * toPercent(member.stress, member.maxStress)), 6, 3)
@@ -2264,9 +2359,11 @@ export class BattleScene {
         name,
         role,
         energyLabel,
+        hpValue,
         energyBg,
         energyFill,
         stressLabel,
+        stressValue,
         stressBg,
         stressFill,
       );
@@ -2584,12 +2681,20 @@ export class BattleScene {
       status.x = layout.left.x + 14;
       status.y = y + 31;
 
+      const hpText = makeLabel(
+        `HP ${Math.round(member.energy)} / ${Math.round(member.maxEnergy)}`,
+        7,
+        0x86efac,
+      );
+      hpText.x = layout.left.x + 14;
+      hpText.y = y + 42;
+
       const barWidth = layout.left.w - 28;
       this.drawMeter(this.uiLayer, {
         x: layout.left.x + 14,
         y: y + cardHeight - 28,
         width: barWidth,
-        label: "Energia",
+        label: "HP",
         value: member.energy,
         max: member.maxEnergy,
       });
@@ -2604,7 +2709,7 @@ export class BattleScene {
         fillColor: 0xfb7185,
       });
 
-      this.uiLayer.addChild(card, name, role, status);
+      this.uiLayer.addChild(card, name, role, status, hpText);
     });
   }
 
@@ -2685,11 +2790,15 @@ export class BattleScene {
     const entry = new Container();
     entry.x = intentsRect.x + cardInset;
     entry.y = rowY;
+    entry.interactiveChildren = true;
     const cardWidth = intentsRect.w - cardInset * 2;
     const contentPadX = 10;
     const contentGap = 4;
     const textWidth = cardWidth - contentPadX * 2;
-    const charsPerLine = Math.max(16, Math.floor(textWidth / 5.2));
+    const nameFontSize = Math.max(7, Math.round(8 * CANVAS_UI_SCALE));
+    const bodyFontSize = Math.max(7, Math.round(7 * CANVAS_UI_SCALE));
+    const nameCharsPerLine = estimateCharsPerLine(textWidth, nameFontSize);
+    const bodyCharsPerLine = estimateCharsPerLine(textWidth, bodyFontSize);
 
     const card = new Graphics()
       .roundRect(0, 0, cardWidth, rowHeight, 7)
@@ -2698,7 +2807,7 @@ export class BattleScene {
 
     entry.addChild(card);
 
-    const name = makeLabel(truncateText(enemy.name.toUpperCase(), charsPerLine + 6), 8, 0xf8fafc);
+    const name = makeLabel(truncateText(enemy.name.toUpperCase(), nameCharsPerLine), 8, 0xf8fafc);
 
     const hp = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 7, 0xfda4af);
 
@@ -2708,15 +2817,15 @@ export class BattleScene {
       : "SIN AMENAZA ACTIVA";
 
     const intent = makeLabel(
-      truncateText(intentLabelText, charsPerLine + 2),
+      truncateText(intentLabelText, bodyCharsPerLine),
       7,
       hasActiveIntent ? 0xfda4af : 0x94a3b8,
     );
 
     const detailColor = hasActiveIntent ? 0xcbd5e1 : 0x64748b;
     const detailText = hasActiveIntent
-      ? truncateText(enemy.intent.previewText, charsPerLine + 10)
-      : truncateText("No hay accion prevista en este objetivo.", charsPerLine + 6);
+      ? enemy.intent.previewText
+      : "No hay accion prevista en este objetivo.";
 
     const markerHeight = 14;
     const markerY = 6;
@@ -2733,9 +2842,27 @@ export class BattleScene {
     const detailTop = intent.y + intent.height + contentGap;
     const detailBottomLimit = rowHeight - bottomReserve - 2;
     let intentDetail = null;
+    let detailWasTruncated = false;
 
     if (detailBottomLimit - detailTop >= 8) {
-      intentDetail = makeLabel(detailText, 7, detailColor);
+      const detailAvailableHeight = detailBottomLimit - detailTop;
+      const detailLineHeight = Math.max(10, bodyFontSize);
+      const maxDetailLines = Math.max(1, Math.floor(detailAvailableHeight / detailLineHeight));
+      const detailTextLimit = bodyCharsPerLine * maxDetailLines;
+      const detailRenderedText = truncateText(detailText, detailTextLimit);
+      detailWasTruncated = detailRenderedText !== detailText;
+      intentDetail = new Text({
+        text: detailRenderedText,
+        style: {
+          fontFamily: "Courier New, monospace",
+          fontSize: bodyFontSize,
+          fill: detailColor,
+          wordWrap: true,
+          wordWrapWidth: textWidth,
+          breakWords: true,
+          lineHeight: detailLineHeight,
+        },
+      });
       intentDetail.x = contentPadX;
       intentDetail.y = detailTop;
       if (intentDetail.y + intentDetail.height > detailBottomLimit) {
@@ -2786,12 +2913,27 @@ export class BattleScene {
       });
     }
 
+    if (intentDetail && detailWasTruncated) {
+      const showDetailTooltip = (event) => {
+        const point = event?.global ?? { x: intentsRect.x + intentsRect.w - 10, y: rowY };
+        this.showMetricTooltip("Descripcion completa", detailText, point.x, point.y);
+      };
+
+      intentDetail.eventMode = "static";
+      intentDetail.cursor = "help";
+      intentDetail.on("pointerover", showDetailTooltip);
+      intentDetail.on("pointermove", showDetailTooltip);
+      intentDetail.on("pointerout", () => {
+        this.hideMetricTooltip();
+      });
+    }
+
     name.eventMode = "none";
     hp.eventMode = "none";
     if (!hasActiveIntent) {
       intent.eventMode = "none";
     }
-    if (intentDetail) {
+    if (intentDetail && !detailWasTruncated) {
       intentDetail.eventMode = "none";
     }
     this.uiLayer.addChild(entry);
@@ -2986,16 +3128,47 @@ export class BattleScene {
     }
 
     const selectedEnemy = snapshot.enemies.find((enemy) => enemy.id === selectedEnemyId);
+    const targetFontSize = Math.max(7, Math.round(8 * CANVAS_UI_SCALE));
+    const targetCharsPerLine = estimateCharsPerLine(layout.right.w - 24, targetFontSize);
+    const targetNameText = selectedEnemy ? selectedEnemy.name.toUpperCase() : "";
+    const targetNameDisplay = selectedEnemy
+      ? truncateText(targetNameText, Math.max(8, targetCharsPerLine - 10))
+      : "NINGUNO";
     const targetLabel = makeLabel(
-      selectedEnemy
-        ? `OBJETIVO: ${selectedEnemy.name.toUpperCase()}`
-        : "OBJETIVO: NINGUNO",
+      `OBJETIVO: ${targetNameDisplay}`,
       8,
       selectedEnemy ? 0xfde047 : 0x94a3b8,
     );
     targetLabel.x = layout.right.x + 12;
     targetLabel.y = layout.right.y + 48;
+
+    if (selectedEnemy && targetNameDisplay !== targetNameText) {
+      const showTargetTooltip = (event) => {
+        const point = event?.global ?? { x: targetLabel.x + 10, y: targetLabel.y + 10 };
+        this.showMetricTooltip("Objetivo completo", targetNameText, point.x, point.y);
+      };
+
+      targetLabel.eventMode = "static";
+      targetLabel.cursor = "help";
+      targetLabel.on("pointerover", showTargetTooltip);
+      targetLabel.on("pointermove", showTargetTooltip);
+      targetLabel.on("pointerout", () => {
+        this.hideMetricTooltip();
+      });
+    } else {
+      targetLabel.eventMode = "none";
+    }
+
     this.uiLayer.addChild(targetLabel);
+
+    const luckHint = makeLabel(
+      "Nota: la suerte agrega variacion secundaria y no reemplaza efectos base.",
+      7,
+      0x93c5fd,
+    );
+    luckHint.x = layout.right.x + 12;
+    luckHint.y = layout.right.y + 62;
+    this.uiLayer.addChild(luckHint);
 
     const actions = snapshot.actions ?? [];
     if (!actions.length) {
@@ -3010,11 +3183,10 @@ export class BattleScene {
     const rows = Math.ceil(actions.length / cols);
     const gap = 12;
     const availableW = layout.right.w - 20;
-    const availableH = layout.right.h - 96 - gap * (rows - 1);
+    const availableH = layout.right.h - 112 - gap * (rows - 1);
     const btnW = availableW / cols;
     const btnH = availableH / rows;
     const maxConsequenceLines = btnH >= 126 ? 3 : btnH >= 96 ? 2 : btnH >= 74 ? 1 : 0;
-    const summaryCharLimit = btnW >= 220 ? 74 : btnW >= 196 ? 62 : 50;
 
     actions.forEach((action, index) => {
       const col = index % cols;
@@ -3028,8 +3200,9 @@ export class BattleScene {
         width: btnW,
         height: btnH,
         label: action.title,
-        subtitle: truncateText(action.summary, summaryCharLimit),
+        subtitle: action.summary,
         consequenceLines: buildActionConsequenceLines(action, action.hasDebt, maxConsequenceLines),
+        subtitleTooltipText: buildActionTooltip(action, action.hasDebt),
         tone: action.hasDebt ? "danger" : "default",
         badge: action.hasDebt ? "DEUDA" : getLuckProfileBadge(action.luckProfile),
         onTap: () => {
@@ -3142,5 +3315,236 @@ export class BattleScene {
     });
 
     this.overlayLayer.addChild(continueButton);
+  }
+
+  drawStaffingCrisisOverlay(snapshot, layout) {
+    const crisis = snapshot.staffingCrisis;
+    if (snapshot.battleStatus !== "active" || !crisis) {
+      return;
+    }
+
+    const veil = new Graphics().rect(0, 0, this.width, this.height).fill({ color: 0x020617, alpha: 0.58 });
+    veil.eventMode = "none";
+    this.overlayLayer.addChild(veil);
+
+    const modalWidth = Math.min(900, this.width - 110);
+    const modalHeight = Math.min(560, this.height - 90);
+    const modalX = this.width / 2 - modalWidth / 2;
+    const modalY = this.height / 2 - modalHeight / 2;
+
+    const modal = this.makePanel(modalX, modalY, modalWidth, modalHeight, 12);
+    modal.eventMode = "none";
+    this.overlayLayer.addChild(modal);
+
+    const bodyFontSize = 11;
+    const bodyLineHeight = 16;
+    const contentPadding = 24;
+    const infoGap = 10;
+    const contentX = modalX + contentPadding;
+    const contentY = modalY + contentPadding;
+    const contentW = modalWidth - contentPadding * 2;
+
+    const title = makeLabel("EVENTO CRITICO: CRISIS DE PERSONAL", 16, 0xfda4af);
+    title.x = contentX;
+    title.y = contentY;
+    this.overlayLayer.addChild(title);
+
+    const subtitle = new Text({
+      text: "Resuelve vacantes para recuperar el flujo operativo del proyecto.",
+      style: {
+        fontFamily: "Courier New, monospace",
+        fontSize: bodyFontSize,
+        fill: 0xf8fafc,
+        lineHeight: bodyLineHeight,
+        fontWeight: "700",
+        letterSpacing: 0.4,
+      },
+    });
+    subtitle.x = contentX;
+    subtitle.y = title.y + title.height + 6;
+    this.overlayLayer.addChild(subtitle);
+
+    const separator = new Graphics()
+      .moveTo(contentX, subtitle.y + subtitle.height + 8)
+      .lineTo(contentX + contentW, subtitle.y + subtitle.height + 8)
+      .stroke({ width: 1, color: 0x334155, alpha: 0.9 });
+    separator.eventMode = "none";
+    this.overlayLayer.addChild(separator);
+
+    const infoBoxY = subtitle.y + subtitle.height + 16;
+    const infoBox = new Graphics()
+      .roundRect(contentX, infoBoxY, contentW, 122, 8)
+      .fill({ color: 0x0f172a, alpha: 0.74 })
+      .stroke({ width: 1, color: 0x334155, alpha: 0.95 });
+    infoBox.eventMode = "none";
+    this.overlayLayer.addChild(infoBox);
+
+    const infoStyle = {
+      fontFamily: "Courier New, monospace",
+      fontSize: bodyFontSize,
+      lineHeight: bodyLineHeight,
+      fontWeight: "700",
+      letterSpacing: 0.35,
+      wordWrap: true,
+      wordWrapWidth: contentW - 24,
+    };
+
+    const infoLines = [];
+    infoLines.push({
+      text:
+        crisis.summary ||
+        "Se rompio la continuidad del equipo y hay que actuar ya para que el proyecto no se caiga.",
+      fill: 0xe2e8f0,
+    });
+    infoLines.push({
+      text: "Si un rol se queda sin persona, el proyecto se traba. Cubre internamente o contrata para mantener el flujo.",
+      fill: 0xfcd34d,
+    });
+
+    if ((crisis.dismissedMembers ?? []).length > 0) {
+      const getDismissalDetail = (record) => {
+        if (record.cause === "stress_resignation") {
+          return `${record.memberName} ha renunciado por demasiado estres`;
+        }
+
+        const causeLabelByType = {
+          energy_collapse: "agotamiento energetico",
+          disciplinary_exit: "sancion disciplinaria",
+          incident_impact: "impacto de incidente",
+          unknown: "causa operativa",
+        };
+
+        const causeLabel = causeLabelByType[record.cause] ?? "causa operativa";
+        return `${record.memberName} ha sido despedido por ${causeLabel}`;
+      };
+
+      const dismissedText = crisis.dismissedMembers
+        .map((record) => getDismissalDetail(record))
+        .join(" • ");
+
+      infoLines.push({ text: `Detalle de bajas: ${dismissedText}`, fill: 0xfda4af });
+    }
+
+    let infoCursorY = infoBoxY + 12;
+    infoLines.forEach((line) => {
+      const label = new Text({
+        text: line.text,
+        style: {
+          ...infoStyle,
+          fill: line.fill,
+        },
+      });
+      label.x = contentX + 12;
+      label.y = infoCursorY;
+      this.overlayLayer.addChild(label);
+      infoCursorY += label.height + infoGap;
+    });
+
+    let cursorY = infoBoxY + infoBox.height + 14;
+    const roleHeader = new Text({
+      text: "ROLES VACANTES Y ACCIONES DISPONIBLES",
+      style: {
+        fontFamily: "Courier New, monospace",
+        fontSize: bodyFontSize,
+        fill: 0xe2e8f0,
+        lineHeight: bodyLineHeight,
+        fontWeight: "700",
+        letterSpacing: 0.5,
+      },
+    });
+    roleHeader.x = contentX;
+    roleHeader.y = cursorY;
+    this.overlayLayer.addChild(roleHeader);
+    cursorY += roleHeader.height + 10;
+
+    const modalInnerW = contentW;
+
+    (crisis.vacantRoles ?? []).forEach((role) => {
+      const rowHeight = 48;
+      const row = new Graphics()
+        .roundRect(contentX, cursorY - 4, contentW, rowHeight, 8)
+        .fill({ color: 0x111827, alpha: 0.68 })
+        .stroke({ width: 1, color: 0x334155, alpha: 0.9 });
+      row.eventMode = "none";
+      this.overlayLayer.addChild(row);
+
+      const roleLabel = new Text({
+        text: `VACANTE: ${this.getRoleLabel(role).toUpperCase()}`,
+        style: {
+          fontFamily: "Courier New, monospace",
+          fontSize: bodyFontSize,
+          fill: 0xe2e8f0,
+          lineHeight: bodyLineHeight,
+          fontWeight: "700",
+          letterSpacing: 0.4,
+        },
+      });
+      roleLabel.x = contentX + 10;
+      roleLabel.y = cursorY + 10;
+      this.overlayLayer.addChild(roleLabel);
+
+      const candidates = (snapshot.staffingCandidates ?? [])
+        .filter((candidate) => candidate.assignedRole !== role)
+        .slice(0, 3);
+      const candidateWidth = candidates.length
+        ? (modalInnerW - 156 - 12 * (candidates.length - 1) - 144) / candidates.length
+        : modalInnerW - 300;
+
+      const actionY = cursorY + 2;
+      const startX = contentX + 156;
+
+      if (!candidates.length) {
+        const noCandidate = new Text({
+          text: "Sin perfiles internos viables para suplencia.",
+          style: {
+            fontFamily: "Courier New, monospace",
+            fontSize: bodyFontSize,
+            fill: 0x94a3b8,
+            lineHeight: bodyLineHeight,
+            fontWeight: "700",
+            letterSpacing: 0.35,
+          },
+        });
+        noCandidate.x = startX;
+        noCandidate.y = cursorY + 12;
+        this.overlayLayer.addChild(noCandidate);
+      }
+
+      candidates.forEach((candidate, index) => {
+        const button = this.makeButton({
+          x: startX + index * (candidateWidth + 12),
+          y: actionY,
+          width: candidateWidth,
+          height: 40,
+          label: `Suplencia: ${candidate.name}`,
+          subtitle: "Cobertura interna",
+          tone: "default",
+          onTap: () => {
+            if (typeof this.handlers.onApplyCoverage === "function") {
+              this.handlers.onApplyCoverage(candidate.id, role);
+            }
+          },
+        });
+        this.overlayLayer.addChild(button);
+      });
+
+      const hireButton = this.makeButton({
+        x: contentX + contentW - 132,
+        y: actionY,
+        width: 122,
+        height: 40,
+        label: "Contratar",
+        subtitle: "Costo alto",
+        tone: "danger",
+        onTap: () => {
+          if (typeof this.handlers.onHireReplacement === "function") {
+            this.handlers.onHireReplacement(role);
+          }
+        },
+      });
+      this.overlayLayer.addChild(hireButton);
+
+      cursorY += rowHeight + 12;
+    });
   }
 }

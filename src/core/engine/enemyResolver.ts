@@ -1,3 +1,4 @@
+import { BALANCE } from "../config/balance";
 import type {
   EnemyIntent,
   EnemyIntentContext,
@@ -114,6 +115,27 @@ const INTENT_LIBRARY: Record<EnemyIntentType, EnemyIntent> = {
     expectedEffects: { time: -1, risk: 5, progress: -2 },
     telegraphLevel: "clear",
   },
+  critical_defect: {
+    type: "critical_defect",
+    label: "Defecto critico",
+    previewText: "Bloqueara salida y forzara retrabajo severo en calidad y cronograma.",
+    expectedEffects: { quality: -7, progress: -3, risk: 4, time: -1 },
+    telegraphLevel: "partial",
+  },
+  funding_cut: {
+    type: "funding_cut",
+    label: "Corte de financiamiento",
+    previewText: "Reducira fondos aprobados y presionara decisiones de recorte inmediato.",
+    expectedEffects: { budget: -3, risk: 5, progress: -2 },
+    telegraphLevel: "clear",
+  },
+  multi_front_escalation: {
+    type: "multi_front_escalation",
+    label: "Escalamiento multifrente",
+    previewText: "Activara ataques simultaneos sobre alcance, costo, tiempo y calidad.",
+    expectedEffects: { risk: 7, time: -1, budget: -2, quality: -2, progress: -2 },
+    telegraphLevel: "partial",
+  },
 };
 
 const TEAM_PRESSURE_BY_INTENT: Record<EnemyIntentType, { stress: number; energyLoss: number }> = {
@@ -132,7 +154,43 @@ const TEAM_PRESSURE_BY_INTENT: Record<EnemyIntentType, { stress: number; energyL
   audit_ping: { stress: 4, energyLoss: 1 },
   shadow_scope: { stress: 5, energyLoss: 2 },
   passive_penalty: { stress: 6, energyLoss: 2 },
+  critical_defect: { stress: 6, energyLoss: 2 },
+  funding_cut: { stress: 5, energyLoss: 1 },
+  multi_front_escalation: { stress: 7, energyLoss: 2 },
 };
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function scaleProjectPenaltyByKey(
+  key: "budget" | "time" | "quality" | "risk" | "progress",
+  value: number,
+): number {
+  const multiplier = BALANCE.combat.penaltySeverityMultiplier;
+
+  if (multiplier === 1 || value === 0) {
+    return value;
+  }
+
+  if (key === "risk" && value > 0) {
+    return round2(value * multiplier);
+  }
+
+  if (["budget", "time", "quality", "progress"].includes(key) && value < 0) {
+    return round2(value * multiplier);
+  }
+
+  return value;
+}
+
+function scaleTeamPressurePenalty(value: number): number {
+  if (value <= 0) {
+    return value;
+  }
+
+  return round2(value * BALANCE.combat.penaltySeverityMultiplier);
+}
 
 export function buildEnemyFromSeed(seed: EnemySeed): EnemyUnit {
   return {
@@ -168,6 +226,31 @@ function pickContextDrivenIntent(
     return "shadow_scope";
   }
 
+  if (
+    roundNumber >= 3 &&
+    project.quality < 45 &&
+    hasAnyTag(enemy, ["quality", "compliance", "audit", "gatekeeper", "handover"])
+  ) {
+    return "critical_defect";
+  }
+
+  if (
+    roundNumber >= 3 &&
+    project.budget < 45 &&
+    hasAnyTag(enemy, ["sponsor", "vendor", "supplier", "pressure"])
+  ) {
+    return "funding_cut";
+  }
+
+  if (
+    roundNumber >= 4 &&
+    project.risk > 68 &&
+    project.time < 45 &&
+    hasAnyTag(enemy, ["pressure", "scope", "approval", "audit", "politics"])
+  ) {
+    return "multi_front_escalation";
+  }
+
   if (hasAnyTag(enemy, ["supplier", "vendor", "provider"])) {
     return project.time < 60 ? "vendor_failure" : "budget_burn";
   }
@@ -184,6 +267,18 @@ function pickContextDrivenIntent(
 }
 
 function pickThresholdDrivenIntent(enemy: EnemyUnit, project: ProjectStats): EnemyIntentType {
+  if (project.risk > 86 || (project.risk > 76 && project.time < 38)) {
+    return "multi_front_escalation";
+  }
+
+  if (project.budget < 22) {
+    return "funding_cut";
+  }
+
+  if (project.quality < 38) {
+    return "critical_defect";
+  }
+
   if (project.risk > 70) {
     return "risk_spike";
   }
@@ -234,24 +329,44 @@ function pickBossIntentType(
     return "passive_penalty";
   }
 
+  if (project.risk > 82 && project.time < 44 && hpRatio <= 0.65) {
+    return "multi_front_escalation";
+  }
+
+  if (project.quality < 42 && hpRatio <= 0.5) {
+    return "critical_defect";
+  }
+
+  if (project.budget < 28 && hpRatio > 0.28) {
+    return "funding_cut";
+  }
+
   if (debtChainCount >= 1 && hpRatio > 0.25) {
-    return "shadow_scope";
+    return project.risk > 64 ? "multi_front_escalation" : "shadow_scope";
   }
 
   if (hpRatio <= 0.18) {
-    return project.risk > 70 ? "shadow_scope" : "compliance_gate";
+    return project.risk > 75 ? "multi_front_escalation" : "compliance_gate";
   }
 
   if (hpRatio <= 0.4) {
+    if (project.budget < 34) {
+      return "funding_cut";
+    }
+
     return project.risk > 55 ? "risk_spike" : "scope_pressure";
   }
 
   if (hpRatio <= 0.7) {
+    if (project.quality < 48) {
+      return "critical_defect";
+    }
+
     return project.time < 40 ? "delay" : "approval_freeze";
   }
 
   if (roundNumber >= 4 && project.progress > 40) {
-    return "approval_freeze";
+    return project.risk > 58 ? "multi_front_escalation" : "approval_freeze";
   }
 
   return "scope_pressure";
@@ -279,20 +394,39 @@ export function resolveEnemyIntent(
   logText: string;
 } {
   const intent = enemy.intent ?? INTENT_LIBRARY.scope_pressure;
-  const teamPressure = TEAM_PRESSURE_BY_INTENT[intent.type] ?? TEAM_PRESSURE_BY_INTENT.scope_pressure;
+  const baseTeamPressure =
+    TEAM_PRESSURE_BY_INTENT[intent.type] ?? TEAM_PRESSURE_BY_INTENT.scope_pressure;
+  const teamPressure = {
+    stress: scaleTeamPressurePenalty(baseTeamPressure.stress),
+    energyLoss: scaleTeamPressurePenalty(baseTeamPressure.energyLoss),
+  };
+
+  const expectedEffects = intent.expectedEffects;
 
   const updatedProject: ProjectStats = {
     ...project,
-    budget: clamp(project.budget + (intent.expectedEffects.budget ?? 0), 0, project.maxBudget),
-    time: clamp(project.time + (intent.expectedEffects.time ?? 0), 0, project.maxTime),
+    budget: clamp(
+      project.budget + scaleProjectPenaltyByKey("budget", expectedEffects.budget ?? 0),
+      0,
+      project.maxBudget,
+    ),
+    time: clamp(
+      project.time + scaleProjectPenaltyByKey("time", expectedEffects.time ?? 0),
+      0,
+      project.maxTime,
+    ),
     quality: clamp(
-      project.quality + (intent.expectedEffects.quality ?? 0),
+      project.quality + scaleProjectPenaltyByKey("quality", expectedEffects.quality ?? 0),
       0,
       project.maxQuality,
     ),
-    risk: clamp(project.risk + (intent.expectedEffects.risk ?? 0), 0, project.maxRisk),
+    risk: clamp(
+      project.risk + scaleProjectPenaltyByKey("risk", expectedEffects.risk ?? 0),
+      0,
+      project.maxRisk,
+    ),
     progress: clamp(
-      project.progress + (intent.expectedEffects.progress ?? 0),
+      project.progress + scaleProjectPenaltyByKey("progress", expectedEffects.progress ?? 0),
       0,
       project.maxProgress,
     ),
@@ -318,9 +452,13 @@ export function resolveEnemyIntent(
     };
   });
 
+  const teamImpactText = target
+    ? `${target.name} recibe presion (estres +${teamPressure.stress}, energia -${teamPressure.energyLoss}).`
+    : "No hay objetivo operativo para aplicar presion de equipo.";
+
   return {
     project: updatedProject,
     team: updatedTeam,
-    logText: `${enemy.name} ejecuta ${intent.label}. ${intent.previewText}`,
+    logText: `${enemy.name} ejecuta ${intent.label}. ${teamImpactText} ${intent.previewText}`,
   };
 }

@@ -38,12 +38,30 @@ import type {
   ProjectResourceKey,
   RunScreen,
   StartRunPayload,
+  StaffingCrisisEvent,
+  StaffingCrisisSource,
+  StaffingDismissalRecord,
   TeamMember,
   LuckEventPolarity,
   TurnToken,
 } from "../../types/game";
 
 const ROLE_ORDER: CharacterRole[] = ["director", "planning", "quality"];
+type BaseDismissalTracker = Record<CharacterRole, boolean>;
+
+const ROLE_LABELS: Record<CharacterRole, string> = {
+  director: "Director",
+  planning: "Planning",
+  quality: "Calidad",
+};
+
+const DISMISSAL_CAUSE_LABELS: Record<StaffingDismissalRecord["cause"], string> = {
+  energy_collapse: "agotamiento energetico",
+  stress_resignation: "renuncia por estres excesivo",
+  disciplinary_exit: "sancion disciplinaria",
+  incident_impact: "impacto de incidente",
+  unknown: "causa operativa",
+};
 
 const DEFAULT_NAMES: Record<CharacterRole, string> = {
   director: "Director",
@@ -171,6 +189,36 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function scaleProjectPenaltyByKey(key: ProjectResourceKey, value: number): number {
+  const multiplier = BALANCE.combat.penaltySeverityMultiplier;
+
+  if (multiplier === 1 || value === 0) {
+    return value;
+  }
+
+  if (key === "risk" && value > 0) {
+    return round2(value * multiplier);
+  }
+
+  if (["budget", "time", "quality", "progress"].includes(key) && value < 0) {
+    return round2(value * multiplier);
+  }
+
+  return value;
+}
+
+function scalePositivePenalty(value: number): number {
+  if (value <= 0) {
+    return value;
+  }
+
+  return round2(value * BALANCE.combat.penaltySeverityMultiplier);
+}
+
 function applyProjectDelta(
   project: ProjectStats,
   delta: Partial<Record<ProjectResourceKey, number>>,
@@ -234,7 +282,10 @@ function hasStrongIntent(enemies: EnemyUnit[]): boolean {
       timeHit <= pressureRules.strongIntentTimeThreshold ||
       enemy.intent.type === "shadow_scope" ||
       enemy.intent.type === "passive_penalty" ||
-      enemy.intent.type === "vendor_failure"
+      enemy.intent.type === "vendor_failure" ||
+      enemy.intent.type === "critical_defect" ||
+      enemy.intent.type === "funding_cut" ||
+      enemy.intent.type === "multi_front_escalation"
     );
   });
 }
@@ -259,6 +310,23 @@ function randomizeValue(base: number, variance: number, minValue: number): numbe
   const offset = (Math.random() * 2 - 1) * variance;
   const randomized = Math.round(base * (1 + offset));
   return Math.max(minValue, randomized);
+}
+
+function applyStressResignations(team: TeamMember[]): TeamMember[] {
+  return team.map((member) => {
+    if (member.status === "out") {
+      return member;
+    }
+
+    if (member.stress < member.maxStress) {
+      return member;
+    }
+
+    return {
+      ...member,
+      status: "out",
+    };
+  });
 }
 
 function getRandomEnemyVisual(isBoss: boolean): EnemyVisual {
@@ -341,6 +409,7 @@ function createInitialTeam(payload?: StartRunPayload): TeamMember[] {
       id: `member-${role}`,
       name: payload?.members[role]?.trim() || DEFAULT_NAMES[role],
       role,
+      isBaseMember: true,
       assignedRole: role,
       cosmetic,
       energy: BALANCE.team.energyStart,
@@ -354,6 +423,42 @@ function createInitialTeam(payload?: StartRunPayload): TeamMember[] {
       disciplinaryStrikes: 0,
     };
   });
+}
+
+function createInitialBaseDismissalTracker(): BaseDismissalTracker {
+  return {
+    director: false,
+    planning: false,
+    quality: false,
+  };
+}
+
+function markBaseDismissals(
+  previousTeam: TeamMember[],
+  nextTeam: TeamMember[],
+  tracker: BaseDismissalTracker,
+): BaseDismissalTracker {
+  const previousById = new Map(previousTeam.map((member) => [member.id, member]));
+  const nextTracker: BaseDismissalTracker = { ...tracker };
+
+  for (const member of nextTeam) {
+    const previous = previousById.get(member.id);
+    if (!previous || previous.status === "out" || member.status !== "out") {
+      continue;
+    }
+
+    if (!previous.isBaseMember) {
+      continue;
+    }
+
+    nextTracker[previous.role] = true;
+  }
+
+  return nextTracker;
+}
+
+function allBaseMembersDismissedAtLeastOnce(tracker: BaseDismissalTracker): boolean {
+  return ROLE_ORDER.every((role) => tracker[role]);
 }
 
 function applyPhaseSalary(project: ProjectStats, team: TeamMember[]): ProjectStats {
@@ -747,8 +852,14 @@ function applyActionPenaltyState(input: {
       );
     } else if (passiveUsesInEncounter === 2) {
       project = applyProjectDelta(project, {
-        progress: BALANCE.combat.passivePenalty.secondUseProject.progress,
-        risk: BALANCE.combat.passivePenalty.secondUseProject.risk,
+        progress: scaleProjectPenaltyByKey(
+          "progress",
+          BALANCE.combat.passivePenalty.secondUseProject.progress,
+        ),
+        risk: scaleProjectPenaltyByKey(
+          "risk",
+          BALANCE.combat.passivePenalty.secondUseProject.risk,
+        ),
       });
       logs.push(
         createSystemLog(
@@ -761,10 +872,13 @@ function applyActionPenaltyState(input: {
       );
     } else {
       project = applyProjectDelta(project, {
-        time: BALANCE.combat.passivePenalty.thirdUseProject.time,
+        time: scaleProjectPenaltyByKey(
+          "time",
+          BALANCE.combat.passivePenalty.thirdUseProject.time,
+        ),
       });
       enemyMomentum = clamp(
-        enemyMomentum + BALANCE.combat.passivePenalty.thirdUseMomentumGain,
+        enemyMomentum + scalePositivePenalty(BALANCE.combat.passivePenalty.thirdUseMomentumGain),
         0,
         BALANCE.combat.enemyMomentum.maxStacks,
       );
@@ -789,9 +903,18 @@ function applyActionPenaltyState(input: {
     debtActionsThisRound >= BALANCE.combat.debtChainPenalty.triggerCount
   ) {
     project = applyProjectDelta(project, {
-      budget: BALANCE.combat.debtChainPenalty.project.budget,
-      time: BALANCE.combat.debtChainPenalty.project.time,
-      risk: BALANCE.combat.debtChainPenalty.project.risk,
+      budget: scaleProjectPenaltyByKey(
+        "budget",
+        BALANCE.combat.debtChainPenalty.project.budget,
+      ),
+      time: scaleProjectPenaltyByKey(
+        "time",
+        BALANCE.combat.debtChainPenalty.project.time,
+      ),
+      risk: scaleProjectPenaltyByKey(
+        "risk",
+        BALANCE.combat.debtChainPenalty.project.risk,
+      ),
     });
     chainPenaltyAppliedInRound = true;
     logs.push(
@@ -840,7 +963,6 @@ function applyDisciplinaryConsequences(input: {
     let disciplinaryStrikes = member.disciplinaryStrikes;
     let stress = member.stress;
     let energy = member.energy;
-    let status: TeamMember["status"] = member.status;
 
     if (recklessIncrement) {
       stress = clamp(stress + 8, 0, member.maxStress);
@@ -855,19 +977,6 @@ function applyDisciplinaryConsequences(input: {
       stress = clamp(stress + 8, 0, member.maxStress);
     }
 
-    const consequenceWindow =
-      input.project.risk >= 68 || input.project.quality <= 42 || decisionDebtCount >= 5;
-
-    if (
-      recklessDecisionCount >= 4 ||
-      (consequenceWindow && recklessDecisionCount >= 3 && disciplinaryStrikes >= 1)
-    ) {
-      disciplinaryStrikes = 2;
-      status = "out";
-      energy = 0;
-      stress = clamp(stress + 10, 0, member.maxStress);
-    }
-
     return {
       ...member,
       recklessDecisionCount,
@@ -875,7 +984,7 @@ function applyDisciplinaryConsequences(input: {
       disciplinaryStrikes,
       stress,
       energy,
-      status,
+      status: energy <= 0 ? "out" : member.status,
     };
   });
 
@@ -891,65 +1000,17 @@ function applyDisciplinaryConsequences(input: {
       }
 
       const nextStrikes = Math.min(2, member.disciplinaryStrikes + 1);
-      const shouldFire = nextStrikes >= 2;
 
       return {
         ...member,
         disciplinaryStrikes: nextStrikes,
         stress: clamp(member.stress + 6, 0, member.maxStress),
-        energy: shouldFire ? 0 : member.energy,
-        status: shouldFire ? "out" : member.status,
+        status: member.energy <= 0 ? "out" : member.status,
       };
     });
   }
 
-  const shouldTriggerMassDismissal =
-    crisisAccountability &&
-    isRecklessAction &&
-    team.filter((member) => member.status !== "out" && member.recklessDecisionCount >= 1).length >=
-      ROLE_ORDER.length;
-
-  if (shouldTriggerMassDismissal) {
-    team = team.map((member) => {
-      if (member.status === "out") {
-        return member;
-      }
-
-      return {
-        ...member,
-        disciplinaryStrikes: 2,
-        stress: clamp(member.stress + 12, 0, member.maxStress),
-        energy: 0,
-        status: "out",
-      };
-    });
-  }
-
-  const hasFreshDismissal = team.some((member) => {
-    const previous = previousById.get(member.id);
-    return previous?.status !== "out" && member.status === "out";
-  });
-
-  const shouldCascadeDismissal =
-    isRecklessAction &&
-    hasFreshDismissal &&
-    team.filter((member) => member.recklessDecisionCount >= 1).length >= ROLE_ORDER.length;
-
-  if (shouldCascadeDismissal) {
-    team = team.map((member) => {
-      if (member.status === "out") {
-        return member;
-      }
-
-      return {
-        ...member,
-        disciplinaryStrikes: 2,
-        stress: clamp(member.stress + 10, 0, member.maxStress),
-        energy: 0,
-        status: "out",
-      };
-    });
-  }
+  team = applyStressResignations(team);
 
   const logs: LogEntry[] = [];
 
@@ -975,32 +1036,47 @@ function applyDisciplinaryConsequences(input: {
     );
   }
 
-  if (shouldTriggerMassDismissal) {
-    logs.push(
-      createSystemLog(
-        "Despido masivo: la organizacion desvincula a todo el equipo por decisiones temerarias acumuladas en crisis.",
-        input.turnNumber,
-        "warning",
-        "high",
-      ),
-    );
-  }
-
-  if (shouldCascadeDismissal) {
-    logs.push(
-      createSystemLog(
-        "Colapso de confianza: tras multiples decisiones temerarias por rol, se ejecuta desvinculacion total del equipo.",
-        input.turnNumber,
-        "warning",
-        "high",
-      ),
-    );
-  }
-
   for (const member of team) {
     const previous = previousById.get(member.id);
     if (!previous) {
       continue;
+    }
+
+    const stressDelta = Math.round((member.stress - previous.stress) * 10) / 10;
+    const energyDelta = Math.round((member.energy - previous.energy) * 10) / 10;
+
+    if (stressDelta > 0 || energyDelta < 0) {
+      logs.push(
+        createSystemLog(
+          `${member.name} muestra desgaste operativo: estres +${Math.max(0, stressDelta)}, energia ${energyDelta}.`,
+          input.turnNumber,
+          "warning",
+          "medium",
+          [
+            `Marcadores: temerarias ${member.recklessDecisionCount}, deuda ${member.decisionDebtCount}, sanciones ${member.disciplinaryStrikes}.`,
+          ],
+        ),
+      );
+    }
+
+    const reachedPreDismissalWindow =
+      previous.status !== "out" &&
+      member.status !== "out" &&
+      ((previous.recklessDecisionCount < 3 && member.recklessDecisionCount >= 3) ||
+        (previous.decisionDebtCount < 4 && member.decisionDebtCount >= 4));
+
+    if (reachedPreDismissalWindow) {
+      logs.push(
+        createSystemLog(
+          `Alerta de RRHH: ${member.name} acumula desgaste critico por decisiones de alto impacto.`,
+          input.turnNumber,
+          "warning",
+          "high",
+          [
+            `Umbrales de riesgo alcanzados (temerarias ${member.recklessDecisionCount}, deuda ${member.decisionDebtCount}).`,
+          ],
+        ),
+      );
     }
 
     if (previous.disciplinaryStrikes === 0 && member.disciplinaryStrikes === 1) {
@@ -1015,13 +1091,18 @@ function applyDisciplinaryConsequences(input: {
     }
 
     if (previous.status !== "out" && member.status === "out") {
+      const cause = inferDismissalCause(previous, member);
+      const dismissalText =
+        cause === "stress_resignation"
+          ? `${member.name} ha renunciado por demasiado estres.`
+          : `${member.name} ha sido despedido por ${DISMISSAL_CAUSE_LABELS[cause]}.`;
       logs.push(
         createSystemLog(
-          `${member.name} es desvinculado por consecuencias acumuladas de decisiones deficientes.`,
+          dismissalText,
           input.turnNumber,
           "warning",
           "high",
-          ["La salida no es instantanea: surge tras advertencias y deterioro sostenido del proyecto."],
+          ["El rol queda vacante hasta que se aplique cobertura interna o contratacion externa."],
         ),
       );
     }
@@ -1069,7 +1150,10 @@ function applyEnemyMomentumPressure(
     return { project, logs: [] };
   }
 
-  const momentumRisk = enemyMomentum * BALANCE.combat.enemyMomentum.riskPerStack;
+  const momentumRisk = scaleProjectPenaltyByKey(
+    "risk",
+    enemyMomentum * BALANCE.combat.enemyMomentum.riskPerStack,
+  );
   const nextProject = applyProjectDelta(project, { risk: momentumRisk });
 
   return {
@@ -1135,7 +1219,7 @@ function resolveEnemyAttackWave(input: {
       timestamp: Date.now(),
     });
 
-    if (isDefeat(project, team)) {
+    if (project.budget <= 0) {
       return {
         project,
         team,
@@ -1172,7 +1256,10 @@ function applyCompositionAndBossPressure(input: {
   );
 
   if (hasGatekeeper && hasPressure) {
-    project = applyProjectDelta(project, { progress: -2, time: -1 });
+    project = applyProjectDelta(project, {
+      progress: scaleProjectPenaltyByKey("progress", -2),
+      time: scaleProjectPenaltyByKey("time", -1),
+    });
     logs.push(
       createSystemLog(
         "Sinergia enemiga: gatekeeper + presion bloquean avance adicional.",
@@ -1189,9 +1276,12 @@ function applyCompositionAndBossPressure(input: {
 
     if (bossClock >= BALANCE.combat.bossClock.roundsToCrisis) {
       project = applyProjectDelta(project, {
-        time: BALANCE.combat.bossClock.crisisProject.time,
-        progress: BALANCE.combat.bossClock.crisisProject.progress,
-        risk: BALANCE.combat.bossClock.crisisProject.risk,
+        time: scaleProjectPenaltyByKey("time", BALANCE.combat.bossClock.crisisProject.time),
+        progress: scaleProjectPenaltyByKey(
+          "progress",
+          BALANCE.combat.bossClock.crisisProject.progress,
+        ),
+        risk: scaleProjectPenaltyByKey("risk", BALANCE.combat.bossClock.crisisProject.risk),
       });
       logs.push(
         createSystemLog(
@@ -1220,11 +1310,13 @@ function applyEncounterPressure(
 ): { project: ProjectStats; logs: LogEntry[] } {
   const pressureRules = BALANCE.combat.encounterPressure;
   const pressureDelta = {
-    time: -pressureRules.timePerRound,
+    time: scaleProjectPenaltyByKey("time", -pressureRules.timePerRound),
     budget: hasBudgetPressureEnemies(enemies)
-      ? -pressureRules.budgetIfProcurementActive
+      ? scaleProjectPenaltyByKey("budget", -pressureRules.budgetIfProcurementActive)
       : 0,
-    risk: enemies.length >= 2 ? pressureRules.riskIfMultipleEnemies : 0,
+    risk: enemies.length >= 2
+      ? scaleProjectPenaltyByKey("risk", pressureRules.riskIfMultipleEnemies)
+      : 0,
   };
 
   const nextProject = applyProjectDelta(project, pressureDelta);
@@ -1269,17 +1361,17 @@ function applyStrongIntentEntryStress(input: {
 }): { team: TeamMember[]; logs: LogEntry[] } {
   const pressureRules = BALANCE.combat.encounterPressure;
 
-  if (input.nextToken === "enemy" || !hasStrongIntent(input.enemies)) {
+    if (input.nextToken === "enemy" || !hasStrongIntent(input.enemies)) {
     return {
       team: input.team,
       logs: [],
     };
   }
 
-  const stressedTeam = applyStressToToken(
+    const stressedTeam = applyStressToToken(
     input.team,
     input.nextToken,
-    pressureRules.stressOnStrongIntent,
+    scalePositivePenalty(pressureRules.stressOnStrongIntent),
   );
   const nextActor = findActingMember(stressedTeam, input.nextToken);
 
@@ -1304,28 +1396,128 @@ function applyStrongIntentEntryStress(input: {
   };
 }
 
-function isDefeat(project: ProjectStats, team: TeamMember[]): boolean {
-  const hasActiveAssignedRoles = ROLE_ORDER.every((role) =>
-    team.some((member) => member.assignedRole === role && member.status !== "out"),
+function inferDismissalCause(previous: TeamMember, next: TeamMember): StaffingDismissalRecord["cause"] {
+  if (next.stress >= next.maxStress && previous.stress < previous.maxStress) {
+    return "stress_resignation";
+  }
+
+  if (next.energy <= 0 && previous.energy > 0) {
+    return "energy_collapse";
+  }
+
+  return "unknown";
+}
+
+function describeDismissal(record: StaffingDismissalRecord): string {
+  if (record.cause === "stress_resignation") {
+    return `${record.memberName} ha renunciado por demasiado estres`;
+  }
+
+  return `${record.memberName} ha sido despedido por ${DISMISSAL_CAUSE_LABELS[record.cause]}`;
+}
+
+function getFreshDismissals(previousTeam: TeamMember[], nextTeam: TeamMember[]): StaffingDismissalRecord[] {
+  const previousById = new Map(previousTeam.map((member) => [member.id, member]));
+
+  return nextTeam
+    .map((member) => {
+      const previous = previousById.get(member.id);
+      if (!previous || previous.status === "out" || member.status !== "out") {
+        return null;
+      }
+
+      return {
+        memberId: member.id,
+        memberName: member.name,
+        role: member.role,
+        assignedRole: previous.assignedRole,
+        cause: inferDismissalCause(previous, member),
+      } satisfies StaffingDismissalRecord;
+    })
+    .filter((record): record is StaffingDismissalRecord => Boolean(record));
+}
+
+function uniqueDismissalRecords(records: StaffingDismissalRecord[]): StaffingDismissalRecord[] {
+  const byId = new Map<string, StaffingDismissalRecord>();
+  for (const record of records) {
+    byId.set(record.memberId, record);
+  }
+
+  return [...byId.values()];
+}
+
+function buildStaffingCrisisEvent(input: {
+  team: TeamMember[];
+  turnNumber: number;
+  source: StaffingCrisisSource;
+  freshDismissals: StaffingDismissalRecord[];
+  existing: StaffingCrisisEvent | null;
+}): StaffingCrisisEvent | null {
+  const vacantRoles = getVacantRoles(input.team);
+  if (!vacantRoles.length) {
+    return null;
+  }
+
+  const mergedDismissals = uniqueDismissalRecords([
+    ...(input.existing?.dismissedMembers ?? []),
+    ...input.freshDismissals,
+  ]);
+
+  const roleText = vacantRoles.map((role) => ROLE_LABELS[role]).join(", ");
+  const dismissedSummary = mergedDismissals.map((record) => describeDismissal(record)).join(". ");
+
+  const summary = dismissedSummary
+    ? `Evento de personal: ${dismissedSummary}. Vacantes: ${roleText}.`
+    : `Evento de personal: vacantes detectadas en ${roleText}.`;
+
+  return {
+    id:
+      input.existing?.id ??
+      `staffing-crisis-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    turnNumber: input.turnNumber,
+    source:
+      input.existing && input.existing.source !== input.source
+        ? "mixed"
+        : input.existing?.source ?? input.source,
+    severity: "high",
+    vacantRoles,
+    dismissedMembers: mergedDismissals,
+    summary,
+  };
+}
+
+function buildStaffingCrisisDetails(event: StaffingCrisisEvent): string[] {
+  const details: string[] = [];
+
+  if (event.dismissedMembers.length) {
+    details.push(
+      `Desvinculados: ${event.dismissedMembers.map((record) => describeDismissal(record)).join("; ")}.`,
+    );
+  }
+
+  details.push(
+    `Opciones: suplencia interna (estres +${BALANCE.staffing.coverStressPenalty}) o contratacion externa (presupuesto -${Math.round(BALANCE.staffing.hireBudgetPercent * 100)}% min., tiempo -${BALANCE.staffing.hireTimePenalty}, riesgo +${BALANCE.staffing.hireRiskPenalty}, calidad -${BALANCE.staffing.hireQualityPenalty}).`,
   );
 
-  const noActiveMembers = team.every((member) => member.status === "out");
+  return details;
+}
 
-  return (
-    project.budget <= 0 ||
-    project.time <= 0 ||
-    project.risk >= project.maxRisk ||
-    noActiveMembers ||
-    !hasActiveAssignedRoles
+function hasRoleCoverage(team: TeamMember[]): boolean {
+  return ROLE_ORDER.every((role) =>
+    team.some((member) => member.assignedRole === role && member.status !== "out"),
   );
 }
 
-function getGameOverReason(project: ProjectStats, team: TeamMember[]): string {
+function isHardDefeat(project: ProjectStats, baseDismissedByRole: BaseDismissalTracker): boolean {
+  return project.budget <= 0 || allBaseMembersDismissedAtLeastOnce(baseDismissedByRole);
+}
+
+function getGameOverReason(project: ProjectStats, baseDismissedByRole: BaseDismissalTracker): string {
   if (project.budget <= 0) return "Presupuesto agotado";
-  if (project.time <= 0) return "Tiempo agotado";
-  if (project.risk >= project.maxRisk) return "Riesgo fuera de control";
-  if (team.every((member) => member.status === "out")) return "Equipo sin capacidad operativa";
-  return "No hay cobertura para todos los roles";
+  if (allBaseMembersDismissedAtLeastOnce(baseDismissedByRole)) {
+    return "Todos los personajes base quedaron fuera al menos una vez";
+  }
+  return "Operacion sin continuidad";
 }
 
 function isVictory(enemies: EnemyUnit[]): boolean {
@@ -1336,6 +1528,11 @@ function getVacantRoles(team: TeamMember[]): CharacterRole[] {
   return ROLE_ORDER.filter(
     (role) => !team.some((member) => member.assignedRole === role && member.status !== "out"),
   );
+}
+
+function formatSignedValue(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
 }
 
 type GameStore = {
@@ -1359,7 +1556,9 @@ type GameStore = {
   lastLuckLabel: string | null;
   lastLuckPolarity: LuckEventPolarity | null;
   gameOverReason: string | null;
+  baseDismissedByRole: BaseDismissalTracker;
   vacantRoles: CharacterRole[];
+  activeStaffingCrisis: StaffingCrisisEvent | null;
   finalScore: FinalScoreResult | null;
   debtActionsThisRound: number;
   chainPenaltyAppliedInRound: boolean;
@@ -1398,7 +1597,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastLuckLabel: null,
   lastLuckPolarity: null,
   gameOverReason: null,
+  baseDismissedByRole: createInitialBaseDismissalTracker(),
   vacantRoles: [],
+  activeStaffingCrisis: null,
   finalScore: null,
   debtActionsThisRound: 0,
   chainPenaltyAppliedInRound: false,
@@ -1476,7 +1677,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastLuckLabel: null,
       lastLuckPolarity: null,
       gameOverReason: null,
+      baseDismissedByRole: createInitialBaseDismissalTracker(),
       vacantRoles: [],
+      activeStaffingCrisis: null,
       finalScore: null,
       debtActionsThisRound: 0,
       chainPenaltyAppliedInRound: false,
@@ -1490,6 +1693,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
 
     if (state.currentScreen !== "battle" || state.battleStatus !== "active") {
+      return;
+    }
+
+    if (state.activeStaffingCrisis) {
       return;
     }
 
@@ -1573,7 +1780,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turnNumber: state.turnNumber,
     });
 
-    const disciplinedTeam = disciplineState.team;
+    const disciplinedTeam = applyStressResignations(disciplineState.team);
 
     const enemiesWithIntent = refreshEnemyIntents({
       enemies: incidentState.enemies,
@@ -1593,7 +1800,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...disciplineState.logs,
     ];
 
-    const defeat = isDefeat(project, disciplinedTeam);
+    const freshDismissals = getFreshDismissals(state.team, disciplinedTeam);
+    const baseDismissedByRole = markBaseDismissals(
+      state.team,
+      disciplinedTeam,
+      state.baseDismissedByRole,
+    );
+    const staffingCrisis = buildStaffingCrisisEvent({
+      team: disciplinedTeam,
+      turnNumber: state.turnNumber,
+      source: "ally_turn",
+      freshDismissals,
+      existing: state.activeStaffingCrisis,
+    });
+
+    const staffingCrisisLog = staffingCrisis
+      ? createSystemLog(
+          staffingCrisis.summary,
+          state.turnNumber,
+          "warning",
+          "high",
+          buildStaffingCrisisDetails(staffingCrisis),
+        )
+      : null;
+
+    const updatedCombatLogWithCrisis = staffingCrisisLog
+      ? [...updatedCombatLog, staffingCrisisLog]
+      : updatedCombatLog;
+
+    const roleVacancies = getVacantRoles(disciplinedTeam);
+
+    const defeat = isHardDefeat(project, baseDismissedByRole);
     const victory = isVictory(enemiesWithIntent);
 
     if (defeat) {
@@ -1601,13 +1838,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         project,
         team: disciplinedTeam,
         enemies: enemiesWithIntent,
-        combatLog: updatedCombatLog,
+        combatLog: updatedCombatLogWithCrisis,
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(project, disciplinedTeam),
+        gameOverReason: getGameOverReason(project, baseDismissedByRole),
         finalScore: computeFinalScore(project, disciplinedTeam),
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
+        baseDismissedByRole,
+        activeStaffingCrisis: null,
+        vacantRoles: roleVacancies,
         latestIncident: incidentState.incident ?? state.latestIncident,
         lastIncidentTurn: incidentState.lastIncidentTurn,
         debtActionsThisRound,
@@ -1624,7 +1864,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         team: disciplinedTeam,
         enemies: enemiesWithIntent,
         combatLog: [
-          ...updatedCombatLog,
+          ...updatedCombatLogWithCrisis,
           createSystemLog(
             state.currentEncounter.completionText,
             state.turnNumber,
@@ -1636,7 +1876,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         availableActions: [],
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
-        vacantRoles: getVacantRoles(disciplinedTeam),
+        baseDismissedByRole,
+        vacantRoles: roleVacancies,
+        activeStaffingCrisis: staffingCrisis,
         latestIncident: incidentState.incident ?? state.latestIncident,
         lastIncidentTurn: incidentState.lastIncidentTurn,
         debtActionsThisRound,
@@ -1649,6 +1891,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const nextToken = getNextTurnToken(state.activeTurnToken, disciplinedTeam);
 
+    if (staffingCrisis) {
+      set({
+        project,
+        team: disciplinedTeam,
+        enemies: enemiesWithIntent,
+        combatLog: updatedCombatLogWithCrisis,
+        activeTurnToken: nextToken,
+        availableActions: [],
+        turnNumber: state.turnNumber + 1,
+        lastLuckLabel: resolution.luckEvent?.label ?? null,
+        lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
+        baseDismissedByRole,
+        vacantRoles: roleVacancies,
+        activeStaffingCrisis: staffingCrisis,
+        latestIncident: incidentState.incident ?? state.latestIncident,
+        lastIncidentTurn: incidentState.lastIncidentTurn,
+        debtActionsThisRound,
+        chainPenaltyAppliedInRound,
+        passiveUsesInEncounter,
+        enemyMomentum,
+      });
+      return;
+    }
+
     set({
       project,
       team: disciplinedTeam,
@@ -1659,7 +1925,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turnNumber: state.turnNumber + 1,
       lastLuckLabel: resolution.luckEvent?.label ?? null,
       lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
-      vacantRoles: getVacantRoles(disciplinedTeam),
+      baseDismissedByRole,
+      vacantRoles: roleVacancies,
+      activeStaffingCrisis: null,
       latestIncident: incidentState.incident ?? state.latestIncident,
       lastIncidentTurn: incidentState.lastIncidentTurn,
       debtActionsThisRound,
@@ -1680,6 +1948,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    if (state.activeStaffingCrisis) {
+      return;
+    }
+
     const aliveEnemies = state.enemies
       .filter((enemy) => enemy.hp > 0)
       .sort((a, b) => b.threat - a.threat);
@@ -1688,6 +1960,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         battleStatus: "victory",
         availableActions: [],
+        activeStaffingCrisis: null,
       });
       return;
     }
@@ -1711,6 +1984,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     const preSystemLogs = [...momentumState.logs, ...waveState.logs];
+    const baseDismissedAfterWave = markBaseDismissals(
+      state.team,
+      waveState.team,
+      state.baseDismissedByRole,
+    );
 
     if (waveState.defeated) {
       set({
@@ -1720,8 +1998,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...preSystemLogs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(waveState.project, waveState.team),
+        gameOverReason: getGameOverReason(waveState.project, baseDismissedAfterWave),
         finalScore: computeFinalScore(waveState.project, waveState.team),
+        baseDismissedByRole: baseDismissedAfterWave,
+        activeStaffingCrisis: null,
+        vacantRoles: getVacantRoles(waveState.team),
       });
       return;
     }
@@ -1781,35 +2062,97 @@ export const useGameStore = create<GameStore>((set, get) => ({
       enemies: enemiesWithIntent,
       turnNumber: state.turnNumber,
     });
+    const stabilizedTeam = applyStressResignations(stressState.team);
+    const nextTurnToken = getNextTurnToken("enemy", stabilizedTeam);
 
     const finalLogs = [...postSystemLogs, ...stressState.logs];
 
-    if (isDefeat(incidentState.project, stressState.team)) {
+    const freshDismissals = uniqueDismissalRecords([
+      ...getFreshDismissals(state.team, waveState.team),
+      ...getFreshDismissals(waveState.team, stabilizedTeam),
+    ]);
+    const baseDismissedByRole = markBaseDismissals(
+      waveState.team,
+      stabilizedTeam,
+      baseDismissedAfterWave,
+    );
+    const staffingCrisis = buildStaffingCrisisEvent({
+      team: stabilizedTeam,
+      turnNumber: state.turnNumber,
+      source: "enemy_turn",
+      freshDismissals,
+      existing: state.activeStaffingCrisis,
+    });
+
+    const staffingCrisisLog = staffingCrisis
+      ? createSystemLog(
+          staffingCrisis.summary,
+          state.turnNumber,
+          "warning",
+          "high",
+          buildStaffingCrisisDetails(staffingCrisis),
+        )
+      : null;
+
+    const finalLogsWithCrisis = staffingCrisisLog
+      ? [...finalLogs, staffingCrisisLog]
+      : finalLogs;
+
+    const roleVacancies = getVacantRoles(stabilizedTeam);
+
+    if (isHardDefeat(incidentState.project, baseDismissedByRole)) {
       set({
         project: incidentState.project,
-        team: stressState.team,
+        team: stabilizedTeam,
         enemies: enemiesWithIntent,
-        combatLog: [...state.combatLog, ...finalLogs],
+        combatLog: [...state.combatLog, ...finalLogsWithCrisis],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(incidentState.project, stressState.team),
-        finalScore: computeFinalScore(incidentState.project, stressState.team),
+        gameOverReason: getGameOverReason(incidentState.project, baseDismissedByRole),
+        finalScore: computeFinalScore(incidentState.project, stabilizedTeam),
+        baseDismissedByRole,
         latestIncident: incidentState.incident ?? state.latestIncident,
         lastIncidentTurn: incidentState.lastIncidentTurn,
+        activeStaffingCrisis: null,
+        vacantRoles: roleVacancies,
+      });
+      return;
+    }
+
+    if (staffingCrisis) {
+      set({
+        project: incidentState.project,
+        team: stabilizedTeam,
+        enemies: enemiesWithIntent,
+        combatLog: [...state.combatLog, ...finalLogsWithCrisis],
+        activeTurnToken: nextTurnToken,
+        availableActions: [],
+        turnNumber: state.turnNumber + 1,
+        roundNumber: nextRoundNumber,
+        baseDismissedByRole,
+        vacantRoles: roleVacancies,
+        activeStaffingCrisis: staffingCrisis,
+        latestIncident: incidentState.incident ?? state.latestIncident,
+        lastIncidentTurn: incidentState.lastIncidentTurn,
+        debtActionsThisRound: 0,
+        chainPenaltyAppliedInRound: false,
+        bossClock: compositionState.bossClock,
       });
       return;
     }
 
     set({
       project: incidentState.project,
-      team: stressState.team,
+      team: stabilizedTeam,
       enemies: enemiesWithIntent,
-      combatLog: [...state.combatLog, ...finalLogs],
-      activeTurnToken: nextToken,
-      availableActions: getAvailableActions(nextToken, state.currentEncounter, state.currentScenario),
+      combatLog: [...state.combatLog, ...finalLogsWithCrisis],
+      activeTurnToken: nextTurnToken,
+      availableActions: getAvailableActions(nextTurnToken, state.currentEncounter, state.currentScenario),
       turnNumber: state.turnNumber + 1,
       roundNumber: nextRoundNumber,
-      vacantRoles: getVacantRoles(stressState.team),
+      baseDismissedByRole,
+      vacantRoles: roleVacancies,
+      activeStaffingCrisis: null,
       latestIncident: incidentState.incident ?? state.latestIncident,
       lastIncidentTurn: incidentState.lastIncidentTurn,
       debtActionsThisRound: 0,
@@ -1822,6 +2165,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
 
     if (state.currentScreen !== "battle") {
+      return;
+    }
+
+    if (state.activeStaffingCrisis) {
       return;
     }
 
@@ -1925,6 +2272,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ...transitionLogs,
       ],
       vacantRoles: getVacantRoles(state.team),
+      activeStaffingCrisis: null,
       debtActionsThisRound: 0,
       chainPenaltyAppliedInRound: false,
       passiveUsesInEncounter: 0,
@@ -1935,34 +2283,160 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   applyCoverageChoice: (substituteId, missingRole) => {
     const state = get();
-    const updatedTeam = applyCoverage(state.team, substituteId, missingRole);
+    const currentVacancies = state.activeStaffingCrisis?.vacantRoles ?? state.vacantRoles;
+    if (!currentVacancies.includes(missingRole)) {
+      return;
+    }
+
+    const substitute = state.team.find((member) => member.id === substituteId);
+
+    if (!substitute || substitute.status === "out" || substitute.assignedRole === missingRole) {
+      return;
+    }
+
+    const coveredTeam = applyCoverage(state.team, substituteId, missingRole);
+    const updatedTeam = applyStressResignations(coveredTeam);
+    const freshDismissals = getFreshDismissals(state.team, updatedTeam);
+    const baseDismissedByRole = markBaseDismissals(
+      state.team,
+      updatedTeam,
+      state.baseDismissedByRole,
+    );
+    const nextVacantRoles = getVacantRoles(updatedTeam);
+    const nextCrisis = buildStaffingCrisisEvent({
+      team: updatedTeam,
+      turnNumber: state.turnNumber,
+      source: state.activeStaffingCrisis?.source ?? "mixed",
+      freshDismissals,
+      existing: state.activeStaffingCrisis,
+    });
+
+    const logs: LogEntry[] = [
+      createSystemLog(
+        `Evento de cobertura: ${substitute.name} asume temporalmente el rol ${ROLE_LABELS[missingRole]}.`,
+        state.turnNumber,
+        "status",
+        "high",
+        [
+          `Cobertura aplicada con penalidad de estres +${BALANCE.staffing.coverStressPenalty} y eficiencia reducida en decisiones.`,
+        ],
+      ),
+    ];
+
+    if (state.activeStaffingCrisis && !nextCrisis) {
+      logs.push(
+        createSystemLog(
+          "Evento de personal resuelto: la continuidad operativa del equipo fue restablecida.",
+          state.turnNumber,
+          "status",
+          "medium",
+        ),
+      );
+    }
+
+    if (isHardDefeat(state.project, baseDismissedByRole)) {
+      set({
+        team: updatedTeam,
+        project: state.project,
+        enemies: state.enemies,
+        combatLog: [...state.combatLog, ...logs],
+        battleStatus: "defeat",
+        currentScreen: "results",
+        gameOverReason: getGameOverReason(state.project, baseDismissedByRole),
+        finalScore: computeFinalScore(state.project, updatedTeam),
+        baseDismissedByRole,
+        vacantRoles: nextVacantRoles,
+        activeStaffingCrisis: null,
+      });
+      return;
+    }
 
     set({
       team: updatedTeam,
-      vacantRoles: getVacantRoles(updatedTeam),
-      combatLog: [
-        ...state.combatLog,
-        createSystemLog(
-          `Suplencia aplicada: ${missingRole} queda cubierto internamente.`,
-          state.turnNumber,
-          "status",
-        ),
-      ],
+      baseDismissedByRole,
+      vacantRoles: nextVacantRoles,
+      activeStaffingCrisis: nextCrisis,
+      availableActions:
+        state.battleStatus === "active" && !nextCrisis
+          ? getAvailableActions(state.activeTurnToken, state.currentEncounter, state.currentScenario)
+          : [],
+      combatLog: [...state.combatLog, ...logs],
     });
   },
 
   hireReplacementForRole: (role) => {
     const state = get();
+    const currentVacancies = state.activeStaffingCrisis?.vacantRoles ?? state.vacantRoles;
+    if (!currentVacancies.includes(role)) {
+      return;
+    }
+
     const hired = hireReplacement(state.team, state.project, role);
+    const nextVacantRoles = getVacantRoles(hired.team);
+    const nextCrisis = buildStaffingCrisisEvent({
+      team: hired.team,
+      turnNumber: state.turnNumber,
+      source: state.activeStaffingCrisis?.source ?? "mixed",
+      freshDismissals: [],
+      existing: state.activeStaffingCrisis,
+    });
+
+    const budgetDelta = hired.project.budget - state.project.budget;
+    const timeDelta = hired.project.time - state.project.time;
+    const riskDelta = hired.project.risk - state.project.risk;
+    const qualityDelta = hired.project.quality - state.project.quality;
+
+    const logs: LogEntry[] = [
+      createSystemLog(
+        hired.logText,
+        state.turnNumber,
+        "warning",
+        "high",
+        [
+          `Proyecto tras contratacion: presupuesto ${formatSignedValue(budgetDelta)}, tiempo ${formatSignedValue(timeDelta)}, riesgo ${formatSignedValue(riskDelta)}, calidad ${formatSignedValue(qualityDelta)}.`,
+        ],
+      ),
+    ];
+
+    if (state.activeStaffingCrisis && !nextCrisis) {
+      logs.push(
+        createSystemLog(
+          "Evento de personal resuelto: los roles criticos vuelven a tener cobertura.",
+          state.turnNumber,
+          "status",
+          "medium",
+        ),
+      );
+    }
+
+    if (isHardDefeat(hired.project, state.baseDismissedByRole)) {
+      set({
+        team: hired.team,
+        project: hired.project,
+        enemies: state.enemies,
+        combatLog: [...state.combatLog, ...logs],
+        battleStatus: "defeat",
+        currentScreen: "results",
+        gameOverReason: getGameOverReason(hired.project, state.baseDismissedByRole),
+        finalScore: computeFinalScore(hired.project, hired.team),
+        baseDismissedByRole: state.baseDismissedByRole,
+        vacantRoles: nextVacantRoles,
+        activeStaffingCrisis: null,
+      });
+      return;
+    }
 
     set({
       team: hired.team,
       project: hired.project,
-      vacantRoles: getVacantRoles(hired.team),
-      combatLog: [
-        ...state.combatLog,
-        createSystemLog(hired.logText, state.turnNumber, "status"),
-      ],
+      baseDismissedByRole: state.baseDismissedByRole,
+      vacantRoles: nextVacantRoles,
+      activeStaffingCrisis: nextCrisis,
+      availableActions:
+        state.battleStatus === "active" && !nextCrisis
+          ? getAvailableActions(state.activeTurnToken, state.currentEncounter, state.currentScenario)
+          : [],
+      combatLog: [...state.combatLog, ...logs],
     });
   },
 
@@ -1988,7 +2462,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastLuckLabel: null,
       lastLuckPolarity: null,
       gameOverReason: null,
+      baseDismissedByRole: createInitialBaseDismissalTracker(),
       vacantRoles: [],
+      activeStaffingCrisis: null,
       finalScore: null,
       debtActionsThisRound: 0,
       chainPenaltyAppliedInRound: false,

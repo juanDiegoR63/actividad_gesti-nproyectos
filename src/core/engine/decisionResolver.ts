@@ -20,6 +20,36 @@ const PROJECT_KEYS: ProjectResourceKey[] = [
   "progress",
 ];
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function scaleProjectPenalty(key: ProjectResourceKey, value: number): number {
+  const multiplier = BALANCE.combat.penaltySeverityMultiplier;
+
+  if (multiplier === 1 || value === 0) {
+    return value;
+  }
+
+  if (key === "risk" && value > 0) {
+    return round2(value * multiplier);
+  }
+
+  if (["budget", "time", "quality", "progress"].includes(key) && value < 0) {
+    return round2(value * multiplier);
+  }
+
+  return value;
+}
+
+function scaleStressPenalty(value: number): number {
+  if (value <= 0) {
+    return value;
+  }
+
+  return round2(value * BALANCE.combat.penaltySeverityMultiplier);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -149,36 +179,36 @@ function applyDebtPenalty(
 
   if (debt.missingBudget) {
     nextProject = applyProjectDelta(nextProject, {
-      risk: debtPenalty.missingBudget.risk,
-      quality: debtPenalty.missingBudget.quality,
+      risk: scaleProjectPenalty("risk", debtPenalty.missingBudget.risk),
+      quality: scaleProjectPenalty("quality", debtPenalty.missingBudget.quality),
     });
   }
 
   if (debt.missingTime) {
     nextProject = applyProjectDelta(nextProject, {
-      risk: debtPenalty.missingTime.risk,
+      risk: scaleProjectPenalty("risk", debtPenalty.missingTime.risk),
     });
     nextTeam = applyActorDelta(nextTeam, actorId, {
-      stress: debtPenalty.missingTime.actorStress,
+      stress: scaleStressPenalty(debtPenalty.missingTime.actorStress),
     });
   }
 
   if (debt.missingQuality) {
     nextProject = applyProjectDelta(nextProject, {
-      progress: debtPenalty.missingQuality.progress,
-      risk: debtPenalty.missingQuality.risk,
+      progress: scaleProjectPenalty("progress", debtPenalty.missingQuality.progress),
+      risk: scaleProjectPenalty("risk", debtPenalty.missingQuality.risk),
     });
   }
 
   if (debt.missingRiskCap) {
     nextProject = applyProjectDelta(nextProject, {
-      risk: debtPenalty.missingRiskCap.risk,
+      risk: scaleProjectPenalty("risk", debtPenalty.missingRiskCap.risk),
     });
 
     if (Math.random() < debtPenalty.missingRiskCap.incidentChance) {
       nextProject = applyProjectDelta(nextProject, {
-        time: debtPenalty.riskCapIncident.time,
-        quality: debtPenalty.riskCapIncident.quality,
+        time: scaleProjectPenalty("time", debtPenalty.riskCapIncident.time),
+        quality: scaleProjectPenalty("quality", debtPenalty.riskCapIncident.quality),
       });
       incidentLabel =
         "Incidente por riesgo fuera de tope: estalla un frente y se compromete calidad/tiempo";

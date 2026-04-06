@@ -28,7 +28,7 @@ export const phase4: PhaseDefinition = {
           hp: 96,
           threat: 10,
           tags: ["audit", "compliance", "pressure"],
-          intents: ["audit_ping", "misalignment", "risk_spike"],
+          intents: ["audit_ping", "misalignment", "risk_spike", "critical_defect"],
         },
         {
           id: "sponsor-impaciente",
@@ -37,15 +37,17 @@ export const phase4: PhaseDefinition = {
           hp: 92,
           threat: 10,
           tags: ["sponsor", "pressure", "scope"],
-          intents: ["scope_pressure", "approval_freeze", "stakeholder_noise"],
+          intents: ["scope_pressure", "approval_freeze", "stakeholder_noise", "funding_cut"],
         },
       ],
       actionPoolId: [
+        "executive_war_room",
         "negotiate_scope",
         "replan_schedule",
         "apply_contingency",
         "reinforce_quality",
         "document_exception",
+        "mass_quality_sweep",
       ],
     },
     {
@@ -75,6 +77,9 @@ export const phase4: PhaseDefinition = {
             "risk_spike",
             "shadow_scope",
             "passive_penalty",
+            "critical_defect",
+            "funding_cut",
+            "multi_front_escalation",
           ],
         },
         {
@@ -84,17 +89,19 @@ export const phase4: PhaseDefinition = {
           hp: 108,
           threat: 11,
           tags: ["risk", "support", "compliance"],
-          intents: ["risk_spike", "audit_ping", "passive_penalty"],
+          intents: ["risk_spike", "audit_ping", "passive_penalty", "critical_defect"],
         },
       ],
       actionPoolId: [
         "escalate_committee",
+        "executive_war_room",
         "negotiate_scope",
         "accept_conditioned_change",
         "replan_schedule",
         "apply_contingency",
         "reinforce_quality",
         "block_defective_release",
+        "mass_quality_sweep",
       ],
       bossRules: {
         thresholds: [

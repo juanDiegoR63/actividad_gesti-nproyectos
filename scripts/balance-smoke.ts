@@ -212,16 +212,29 @@ function tryResolveVacantRoles(): void {
     return;
   }
 
+  const usedCoverageCandidates = new Set<string>();
+
   for (const missingRole of state.vacantRoles) {
     const fresh = useGameStore.getState();
+    const activeMembers = fresh.team.filter((member) => member.status !== "out");
+
+    // If vacancies are too many for available staff, hire directly to avoid oscillating role swaps.
+    if (activeMembers.length <= fresh.vacantRoles.length) {
+      fresh.hireReplacementForRole(missingRole);
+      continue;
+    }
+
     const candidate = fresh.team.find(
       (member) =>
         member.status !== "out" &&
         member.assignedRole !== missingRole &&
-        ROLE_ORDER.includes(member.assignedRole),
+        ROLE_ORDER.includes(member.assignedRole) &&
+        member.assignedRole === member.role &&
+        !usedCoverageCandidates.has(member.id),
     );
 
     if (candidate) {
+      usedCoverageCandidates.add(candidate.id);
       fresh.applyCoverageChoice(candidate.id, missingRole);
       continue;
     }
@@ -308,6 +321,11 @@ function runSingleSimulation(strategy: Strategy, maxSteps = 3000): RunResult {
     if (state.battleStatus === "victory") {
       tryResolveVacantRoles();
       useGameStore.getState().advanceEncounter();
+      continue;
+    }
+
+    if (state.activeStaffingCrisis) {
+      tryResolveVacantRoles();
       continue;
     }
 

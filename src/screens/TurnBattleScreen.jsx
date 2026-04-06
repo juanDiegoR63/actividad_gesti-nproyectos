@@ -39,6 +39,7 @@ export function TurnBattleScreen() {
     activeTurnToken,
     availableActions,
     battleStatus,
+    activeStaffingCrisis,
     vacantRoles,
     lastLuckLabel,
     lastLuckPolarity,
@@ -63,6 +64,7 @@ export function TurnBattleScreen() {
       activeTurnToken: state.activeTurnToken,
       availableActions: state.availableActions,
       battleStatus: state.battleStatus,
+      activeStaffingCrisis: state.activeStaffingCrisis,
       vacantRoles: state.vacantRoles,
       lastLuckLabel: state.lastLuckLabel,
       lastLuckPolarity: state.lastLuckPolarity,
@@ -88,7 +90,7 @@ export function TurnBattleScreen() {
   const [selectedEnemyId, setSelectedEnemyId] = useState(null);
 
   useEffect(() => {
-    if (battleStatus !== "active" || activeTurnToken !== "enemy") {
+    if (battleStatus !== "active" || activeTurnToken !== "enemy" || activeStaffingCrisis) {
       return;
     }
 
@@ -97,7 +99,7 @@ export function TurnBattleScreen() {
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [activeTurnToken, battleStatus, resolveEnemyTurn]);
+  }, [activeTurnToken, battleStatus, activeStaffingCrisis, resolveEnemyTurn]);
 
   useEffect(() => {
     if (!currentEncounter) {
@@ -204,6 +206,7 @@ export function TurnBattleScreen() {
       latestIncidentText: latestIncident?.text ?? "",
       activeTurnToken,
       battleStatus,
+      staffingCrisis: activeStaffingCrisis,
       lastLuckLabel,
       lastLuckPolarity,
       project,
@@ -229,6 +232,7 @@ export function TurnBattleScreen() {
       latestIncident,
       activeTurnToken,
       battleStatus,
+      activeStaffingCrisis,
       lastLuckLabel,
       lastLuckPolarity,
       project,
