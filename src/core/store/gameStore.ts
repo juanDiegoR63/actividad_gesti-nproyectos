@@ -32,6 +32,7 @@ import type {
   RunScreen,
   StartRunPayload,
   TeamMember,
+  LuckEventPolarity,
   TurnToken,
 } from "../../types/game";
 
@@ -358,6 +359,7 @@ type GameStore = {
   availableActions: DecisionOption[];
   combatLog: LogEntry[];
   lastLuckLabel: string | null;
+  lastLuckPolarity: LuckEventPolarity | null;
   gameOverReason: string | null;
   vacantRoles: CharacterRole[];
   finalScore: FinalScoreResult | null;
@@ -387,6 +389,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   availableActions: [],
   combatLog: [],
   lastLuckLabel: null,
+  lastLuckPolarity: null,
   gameOverReason: null,
   vacantRoles: [],
   finalScore: null,
@@ -432,6 +435,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ),
       ],
       lastLuckLabel: null,
+      lastLuckPolarity: null,
       gameOverReason: null,
       vacantRoles: [],
       finalScore: null,
@@ -498,6 +502,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         gameOverReason: getGameOverReason(resolution.project, resolution.team),
         finalScore: computeFinalScore(resolution.project, resolution.team),
         lastLuckLabel: resolution.luckEvent?.label ?? null,
+        lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
       });
       return;
     }
@@ -520,6 +525,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         activeTurnToken: state.activeTurnToken,
         availableActions: [],
         lastLuckLabel: resolution.luckEvent?.label ?? null,
+        lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
         vacantRoles: getVacantRoles(resolution.team),
       });
       return;
@@ -536,6 +542,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       availableActions: getAvailableActions(nextToken, state.currentEncounter),
       turnNumber: state.turnNumber + 1,
       lastLuckLabel: resolution.luckEvent?.label ?? null,
+      lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
       vacantRoles: getVacantRoles(resolution.team),
     });
   },
@@ -715,6 +722,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       availableActions: [],
       combatLog: [],
       lastLuckLabel: null,
+      lastLuckPolarity: null,
       gameOverReason: null,
       vacantRoles: [],
       finalScore: null,

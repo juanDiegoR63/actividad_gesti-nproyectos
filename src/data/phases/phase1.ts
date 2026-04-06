@@ -5,19 +5,21 @@ export const phase1: PhaseDefinition = {
   title: "Fase 1: Inicio",
   theme: "charter, stakeholders y alcance inicial",
   introNarrative:
-    "El proyecto abre con presion politica y expectativas cruzadas. Debes ordenar el inicio antes de que se vuelva caotico.",
+    "El proyecto arranca con expectativas altas y objetivos ambiguos. Debes traducir pedidos politicos a decisiones medibles antes de que se dispare el retrabajo.",
   encounters: [
     {
       id: "phase1-enc1",
       phaseId: "phase-1",
       title: "Kickoff Tenso",
-      subtitle: "Un stakeholder hostil intenta imponer cambios prematuros.",
+      subtitle:
+        "Un stakeholder exige tres cambios fuera de plan: reportes semanales extra, una integracion no presupuestada y adelantar la demo sin mover alcance ni fechas.",
       isBoss: false,
       background: "kickoff_room",
       musicKey: "phase1_normal",
       introText:
-        "La reunion de arranque se vuelve agresiva. El equipo debe recuperar control.",
-      completionText: "El alcance base queda protegido para avanzar al siguiente frente.",
+        "La reunion de arranque pasa de alineacion a presion comercial. Si aceptas cambios sin analisis de impacto, sube riesgo y se consume tiempo de forma reactiva.",
+      completionText:
+        "Se define un alcance minimo viable con criterios de entrada y salida para evaluar futuros pedidos.",
       enemies: [
         {
           id: "stakeholder-hostil",
@@ -41,14 +43,15 @@ export const phase1: PhaseDefinition = {
       id: "phase1-enc2",
       phaseId: "phase-1",
       title: "Sponsor Ambiguo",
-      subtitle: "La ambiguedad del sponsor eleva riesgo y retrabajo.",
+      subtitle:
+        "El sponsor cambia prioridades en cada reunion: pide tablero diario, nuevos KPI y aprobaciones rapidas sin aclarar responsables ni dependencias.",
       isBoss: false,
       background: "stakeholder_hall",
       musicKey: "phase1_normal",
       introText:
-        "Las prioridades cambian sin aviso y se disparan decisiones reactivas.",
+        "Aparecen instrucciones contradictorias entre area usuaria y direccion. Debes convertir ambiguedad en acuerdos trazables para evitar retrabajo.",
       completionText:
-        "El equipo consigue cerrar compromisos minimos para sostener la fase.",
+        "Quedan acordadas reglas de cambio, responsables de aprobacion y ventanas de revision para sostener la fase.",
       enemies: [
         {
           id: "sponsor-ambiguo",
@@ -73,14 +76,15 @@ export const phase1: PhaseDefinition = {
       id: "phase1-boss",
       phaseId: "phase-1",
       title: "Comite de Stakeholders",
-      subtitle: "Boss de fase: presion institucional por compromiso prematuro.",
+      subtitle:
+        "Boss de fase: el comite exige firmar entregables parciales, recortar QA y aceptar alcance adicional antes de cerrar la linea base.",
       isBoss: true,
       background: "boardroom_boss",
       musicKey: "phase1_boss",
       introText:
-        "El comite exige definiciones rapidas. Cada error amplifica costo politico y riesgo.",
+        "Cada decision tiene costo politico. Necesitas defender evidencia minima, riesgos y criterios de aceptacion antes de comprometer fecha y presupuesto.",
       completionText:
-        "Se logra una linea base defendible y la fase de inicio queda completada.",
+        "Se aprueba una linea base defendible con alcance acotado, hitos medibles y control de cambios formal.",
       enemies: [
         {
           id: "comite-stakeholders",
@@ -107,17 +111,17 @@ export const phase1: PhaseDefinition = {
           {
             hpRatio: 0.7,
             intent: "delay",
-            logText: "El comite entra en modo presion de plazo.",
+            logText: "El comite exige comprimir cronograma sin reducir alcance comprometido.",
           },
           {
             hpRatio: 0.4,
             intent: "scope_pressure",
-            logText: "Se activan cambios de alcance de ultimo momento.",
+            logText: "Aparecen cambios de ultimo momento sin analisis de impacto.",
           },
           {
             hpRatio: 0.15,
             intent: "compliance_gate",
-            logText: "Exigen cierre politico inmediato con evidencia formal.",
+            logText: "Piden cierre politico inmediato con riesgos abiertos y evidencia incompleta.",
           },
         ],
       },

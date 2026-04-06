@@ -1,35 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-export function BattleViewport({
-  phaseIndex,
-  encounterTitle,
-  isBoss,
-  activeTurnToken,
-  team,
-  enemies,
-}) {
+export function BattleViewport({ snapshot, handlers }) {
   const hostRef = useRef(null);
   const canvasMountRef = useRef(null);
   const sceneRef = useRef(null);
   const latestSnapshotRef = useRef(null);
   const [sceneStatus, setSceneStatus] = useState("loading");
 
-  const snapshot = useMemo(
-    () => ({
-      phaseIndex,
-      encounterTitle,
-      isBoss,
-      activeTurnToken,
-      team,
-      enemies,
-    }),
-    [phaseIndex, encounterTitle, isBoss, activeTurnToken, team, enemies],
-  );
-
   useEffect(() => {
     latestSnapshotRef.current = snapshot;
     sceneRef.current?.sync(snapshot);
   }, [snapshot]);
+
+  useEffect(() => {
+    sceneRef.current?.setHandlers?.(handlers);
+  }, [handlers]);
 
   useEffect(() => {
     if (!canvasMountRef.current) {
@@ -50,6 +35,7 @@ export function BattleViewport({
         sceneRef.current = scene;
 
         await scene.mount(canvasMountRef.current);
+        scene.setHandlers?.(handlers);
 
         if (disposed) {
           scene.destroy();
@@ -78,8 +64,8 @@ export function BattleViewport({
   }, []);
 
   return (
-    <div className="border-2 border-slate-700 bg-slate-950 p-2">
-      <div className="relative h-[380px] w-full overflow-hidden border border-slate-700 bg-slate-900" ref={hostRef}>
+    <div className="relative h-full w-full bg-slate-950">
+      <div className="relative h-full w-full overflow-hidden bg-slate-900" ref={hostRef}>
         <div className="absolute inset-0" ref={canvasMountRef} />
         {sceneStatus !== "ready" && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80 p-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
