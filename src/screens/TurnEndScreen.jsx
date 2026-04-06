@@ -8,12 +8,13 @@ function pretty(value) {
 }
 
 export function TurnEndScreen() {
-  const { finalScore, gameOverReason, project, team, resetRun } = useGameStore(
+  const { finalScore, gameOverReason, project, team, currentScenario, resetRun } = useGameStore(
     useShallow((state) => ({
       finalScore: state.finalScore,
       gameOverReason: state.gameOverReason,
       project: state.project,
       team: state.team,
+      currentScenario: state.currentScenario,
       resetRun: state.resetRun,
     })),
   );
@@ -63,6 +64,11 @@ export function TurnEndScreen() {
             <p className="mt-2 text-sm text-slate-200">
               Activos: {activeMembers.length}/{team.length}
             </p>
+            {currentScenario && (
+              <p className="mt-2 text-xs uppercase tracking-wider text-sky-300">
+                Escenario: {currentScenario.name}
+              </p>
+            )}
             {gameOverReason && (
               <p className="mt-2 text-xs uppercase tracking-wider text-rose-300">Motivo: {gameOverReason}</p>
             )}

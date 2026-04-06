@@ -28,6 +28,8 @@ export function TurnBattleScreen() {
     teamName,
     phaseIndex,
     encounterIndex,
+    currentScenario,
+    latestIncident,
     turnNumber,
     currentEncounter,
     project,
@@ -50,6 +52,8 @@ export function TurnBattleScreen() {
       teamName: state.teamName,
       phaseIndex: state.phaseIndex,
       encounterIndex: state.encounterIndex,
+      currentScenario: state.currentScenario,
+      latestIncident: state.latestIncident,
       turnNumber: state.turnNumber,
       currentEncounter: state.currentEncounter,
       project: state.project,
@@ -70,7 +74,13 @@ export function TurnBattleScreen() {
     })),
   );
 
-  const phaseTitle = phases[phaseIndex]?.title ?? `Fase ${phaseIndex + 1}`;
+  const phaseData = phases[phaseIndex];
+  const phaseTitle =
+    currentScenario?.phaseOverrides?.[phaseData?.id ?? ""]?.title ??
+    phaseData?.title ??
+    `Fase ${phaseIndex + 1}`;
+  const phaseCount = phases.length;
+  const encounterTotalInPhase = phaseData?.encounters?.length ?? 1;
 
   const previousTurnRef = useRef(null);
   const previousLogLengthRef = useRef(0);
@@ -181,11 +191,17 @@ export function TurnBattleScreen() {
       teamName,
       phaseIndex,
       encounterIndex,
+      phaseCount,
+      encounterTotalInPhase,
       phaseTitle,
       turnNumber,
       encounterTitle: currentEncounter?.title ?? "",
       encounterSubtitle: currentEncounter?.subtitle ?? "",
       isBoss: currentEncounter?.isBoss ?? false,
+      scenarioName: currentScenario?.name ?? "",
+      scenarioSummary: currentScenario?.summary ?? "",
+      latestIncidentTitle: latestIncident?.title ?? "",
+      latestIncidentText: latestIncident?.text ?? "",
       activeTurnToken,
       battleStatus,
       lastLuckLabel,
@@ -204,9 +220,13 @@ export function TurnBattleScreen() {
       teamName,
       phaseIndex,
       encounterIndex,
+      phaseCount,
+      encounterTotalInPhase,
       phaseTitle,
       turnNumber,
       currentEncounter,
+      currentScenario,
+      latestIncident,
       activeTurnToken,
       battleStatus,
       lastLuckLabel,

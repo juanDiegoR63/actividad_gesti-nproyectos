@@ -19,16 +19,25 @@ export const phase1: PhaseDefinition = {
       introText:
         "La reunion de arranque pasa de alineacion a presion comercial. Si aceptas cambios sin analisis de impacto, sube riesgo y se consume tiempo de forma reactiva.",
       completionText:
-        "Se define un alcance minimo viable con criterios de entrada y salida para evaluar futuros pedidos.",
+        "Se define un alcance minimo viable y se ordenan canales para evitar cambios en sombra.",
       enemies: [
         {
           id: "stakeholder-hostil",
           name: "Stakeholder Hostil",
           type: "stakeholder",
-          hp: 70,
-          threat: 8,
-          tags: ["scope", "pressure"],
-          intents: ["scope_pressure", "stakeholder_noise", "delay"],
+          hp: 62,
+          threat: 7,
+          tags: ["scope", "pressure", "sponsor"],
+          intents: ["scope_pressure", "misalignment", "delay"],
+        },
+        {
+          id: "area-usuaria-ansiosa",
+          name: "Area Usuaria Ansiosa",
+          type: "department",
+          hp: 52,
+          threat: 5,
+          tags: ["pressure", "misalignment", "scope"],
+          intents: ["misalignment", "stakeholder_noise", "shadow_scope"],
         },
       ],
       actionPoolId: [
@@ -57,10 +66,19 @@ export const phase1: PhaseDefinition = {
           id: "sponsor-ambiguo",
           name: "Sponsor Ambiguo",
           type: "stakeholder",
-          hp: 80,
-          threat: 10,
-          tags: ["scope", "alignment"],
-          intents: ["stakeholder_noise", "risk_spike", "delay"],
+          hp: 74,
+          threat: 8,
+          tags: ["scope", "alignment", "sponsor", "pressure"],
+          intents: ["misalignment", "risk_spike", "shadow_scope"],
+        },
+        {
+          id: "pmo-formalista",
+          name: "PMO Formalista",
+          type: "organization",
+          hp: 62,
+          threat: 7,
+          tags: ["compliance", "gatekeeper", "audit", "institutional"],
+          intents: ["approval_freeze", "audit_ping", "compliance_gate"],
         },
       ],
       actionPoolId: [
@@ -84,16 +102,25 @@ export const phase1: PhaseDefinition = {
       introText:
         "Cada decision tiene costo politico. Necesitas defender evidencia minima, riesgos y criterios de aceptacion antes de comprometer fecha y presupuesto.",
       completionText:
-        "Se aprueba una linea base defendible con alcance acotado, hitos medibles y control de cambios formal.",
+        "Se aprueba una linea base defendible tras resistir bloqueo institucional y presion politica simultanea.",
       enemies: [
         {
           id: "comite-stakeholders",
           name: "Comite de Stakeholders",
           type: "boss",
-          hp: 160,
-          threat: 14,
-          tags: ["scope", "approval", "politics"],
-          intents: ["scope_pressure", "compliance_gate", "risk_spike", "delay"],
+          hp: 150,
+          threat: 13,
+          tags: ["scope", "approval", "politics", "pressure"],
+          intents: ["scope_pressure", "shadow_scope", "risk_spike", "approval_freeze"],
+        },
+        {
+          id: "secretario-aprobaciones",
+          name: "Secretario de Aprobaciones",
+          type: "organization",
+          hp: 88,
+          threat: 9,
+          tags: ["support", "compliance", "gatekeeper", "approval"],
+          intents: ["approval_freeze", "audit_ping", "passive_penalty"],
         },
       ],
       actionPoolId: [
@@ -110,18 +137,18 @@ export const phase1: PhaseDefinition = {
         thresholds: [
           {
             hpRatio: 0.7,
-            intent: "delay",
-            logText: "El comite exige comprimir cronograma sin reducir alcance comprometido.",
+            intent: "approval_freeze",
+            logText: "El comite congela aprobaciones y exige evidencia adicional inmediata.",
           },
           {
             hpRatio: 0.4,
-            intent: "scope_pressure",
-            logText: "Aparecen cambios de ultimo momento sin analisis de impacto.",
+            intent: "shadow_scope",
+            logText: "Aparecen cambios de ultimo momento fuera del proceso formal.",
           },
           {
             hpRatio: 0.15,
-            intent: "compliance_gate",
-            logText: "Piden cierre politico inmediato con riesgos abiertos y evidencia incompleta.",
+            intent: "passive_penalty",
+            logText: "El comite fuerza cierre politico inmediato con riesgo abierto y penalidad por indecision.",
           },
         ],
       },

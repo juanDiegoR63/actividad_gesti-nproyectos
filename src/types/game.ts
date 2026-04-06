@@ -43,6 +43,14 @@ export type CharacterStatus =
   | "covering_other_role"
   | "out";
 
+export type ProjectSector =
+  | "public"
+  | "health"
+  | "fintech"
+  | "retail"
+  | "industrial"
+  | "education";
+
 export type EnemyType = "stakeholder" | "department" | "organization" | "boss";
 
 export type RunScreen = "menu" | "creation" | "battle" | "results";
@@ -83,6 +91,9 @@ export type TeamMember = {
   maxStress: number;
   salary: number;
   status: CharacterStatus;
+  recklessDecisionCount: number;
+  decisionDebtCount: number;
+  disciplinaryStrikes: number;
 };
 
 export type EnemyIntentType =
@@ -93,7 +104,14 @@ export type EnemyIntentType =
   | "risk_spike"
   | "compliance_gate"
   | "rework"
-  | "stakeholder_noise";
+  | "stakeholder_noise"
+  | "approval_freeze"
+  | "vendor_failure"
+  | "staff_loss"
+  | "misalignment"
+  | "audit_ping"
+  | "shadow_scope"
+  | "passive_penalty";
 
 export type EnemyIntent = {
   type: EnemyIntentType;
@@ -101,6 +119,14 @@ export type EnemyIntent = {
   previewText: string;
   expectedEffects: Partial<Record<ProjectResourceKey, number>>;
   telegraphLevel: "clear" | "partial";
+};
+
+export type EnemyIntentContext = {
+  encounterId?: string;
+  phaseIndex?: number;
+  roundNumber?: number;
+  passiveCount?: number;
+  debtChainCount?: number;
 };
 
 export type EnemyVisual = {
@@ -204,6 +230,50 @@ export type PhaseDefinition = {
   encounters: EncounterDefinition[];
 };
 
+export type ScenarioActionOverride = Partial<
+  Pick<DecisionOption, "title" | "summary" | "description" | "narrativeResult">
+>;
+
+export type ScenarioEncounterOverride = Partial<
+  Pick<EncounterDefinition, "title" | "subtitle" | "introText" | "completionText">
+>;
+
+export type ScenarioPhaseOverride = {
+  title?: string;
+  theme?: string;
+  introNarrative?: string;
+  encounterOverrides?: Record<string, ScenarioEncounterOverride>;
+  actionOverrides?: Record<string, ScenarioActionOverride>;
+};
+
+export type IncidentTriggerType =
+  | "high_risk"
+  | "repeat_passive"
+  | "debt_chain"
+  | "boss_clock"
+  | "random";
+
+export type NarrativeIncident = {
+  id: string;
+  title: string;
+  text: string;
+  trigger: IncidentTriggerType;
+  chance?: number;
+  severity: NarrativeSeverity;
+  effects: DecisionEffects;
+  tags?: string[];
+};
+
+export type ProjectScenario = {
+  id: string;
+  name: string;
+  sector: ProjectSector;
+  summary: string;
+  difficultyModifier?: number;
+  phaseOverrides?: Partial<Record<string, ScenarioPhaseOverride>>;
+  incidentPool: NarrativeIncident[];
+};
+
 export type LogCategory =
   | "action"
   | "damage"
@@ -211,6 +281,8 @@ export type LogCategory =
   | "status"
   | "warning"
   | "phase";
+
+export type NarrativeSeverity = "low" | "medium" | "high";
 
 export type LogEntry = {
   id: string;
@@ -220,6 +292,11 @@ export type LogEntry = {
   text: string;
   glossaryKeys?: string[];
   category: LogCategory;
+  narrativeSeverity?: NarrativeSeverity;
+  explanationPayload?: {
+    title: string;
+    details: string[];
+  };
   timestamp: number;
 };
 
@@ -249,10 +326,13 @@ export type ResolutionResult = {
   logEntry: LogEntry;
   debt: DebtResult;
   luckEvent: LuckEvent | null;
+  narrativeSeverity: NarrativeSeverity;
+  incidentLabel?: string | null;
 };
 
 export type StartRunPayload = {
   teamName: string;
   members: Record<CharacterRole, string>;
   cosmetics?: Record<CharacterRole, CharacterCosmetic>;
+  scenarioId?: string;
 };

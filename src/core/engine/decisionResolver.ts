@@ -139,37 +139,62 @@ function applyDebtPenalty(
 ): {
   project: ProjectStats;
   team: TeamMember[];
+  incidentLabel: string | null;
 } {
   let nextProject = project;
   let nextTeam = team;
+  let incidentLabel: string | null = null;
+
+  const debtPenalty = BALANCE.combat.debtPenalty;
 
   if (debt.missingBudget) {
-    nextProject = applyProjectDelta(nextProject, { risk: 6, quality: -4 });
+    nextProject = applyProjectDelta(nextProject, {
+      risk: debtPenalty.missingBudget.risk,
+      quality: debtPenalty.missingBudget.quality,
+    });
   }
 
   if (debt.missingTime) {
-    nextProject = applyProjectDelta(nextProject, { risk: 8 });
-    nextTeam = applyActorDelta(nextTeam, actorId, { stress: 10 });
+    nextProject = applyProjectDelta(nextProject, {
+      risk: debtPenalty.missingTime.risk,
+    });
+    nextTeam = applyActorDelta(nextTeam, actorId, {
+      stress: debtPenalty.missingTime.actorStress,
+    });
   }
 
   if (debt.missingQuality) {
-    nextProject = applyProjectDelta(nextProject, { progress: -5, risk: 2 });
+    nextProject = applyProjectDelta(nextProject, {
+      progress: debtPenalty.missingQuality.progress,
+      risk: debtPenalty.missingQuality.risk,
+    });
   }
 
   if (debt.missingRiskCap) {
-    nextProject = applyProjectDelta(nextProject, { risk: 5 });
+    nextProject = applyProjectDelta(nextProject, {
+      risk: debtPenalty.missingRiskCap.risk,
+    });
+
+    if (Math.random() < debtPenalty.missingRiskCap.incidentChance) {
+      nextProject = applyProjectDelta(nextProject, {
+        time: debtPenalty.riskCapIncident.time,
+        quality: debtPenalty.riskCapIncident.quality,
+      });
+      incidentLabel =
+        "Incidente por riesgo fuera de tope: estalla un frente y se compromete calidad/tiempo";
+    }
   }
 
   return {
     project: nextProject,
     team: nextTeam,
+    incidentLabel,
   };
 }
 
 function getEffectiveMultiplier(actor: TeamMember, option: DecisionOption): number {
   const roleMultiplier = option.roleScaling?.[actor.assignedRole] ?? 1;
-
-  const stressMultiplier = actor.stress >= 85 ? 0.8 : actor.stress >= 70 ? 0.9 : 1;
+  const stressMultiplier = getStressMultiplier(actor.stress);
 
   const coverageMultiplier =
     actor.status === "covering_other_role" && actor.assignedRole !== actor.role
@@ -177,6 +202,93 @@ function getEffectiveMultiplier(actor: TeamMember, option: DecisionOption): numb
       : 1;
 
   return roleMultiplier * stressMultiplier * coverageMultiplier;
+}
+
+function getStressMultiplier(stress: number): number {
+  if (stress >= 85) {
+    return 0.8;
+  }
+
+  if (stress >= 70) {
+    return 0.9;
+  }
+
+  return 1;
+}
+
+function getNarrativeSeverity(
+  debt: ReturnType<typeof resolveRequirementDebt>,
+  luckEvent: ResolutionResult["luckEvent"],
+): LogEntry["narrativeSeverity"] {
+  if (debt.hasDebt) {
+    if (debt.missingRiskCap || debt.missingTime) {
+      return "high";
+    }
+
+    return "medium";
+  }
+
+  if (luckEvent?.polarity === "negative") {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function buildResolutionLog(input: {
+  actorName: string;
+  actionTitle: string;
+  actionNarrative: string;
+  glossaryKeys: string[];
+  turnNumber: number;
+  debt: ReturnType<typeof resolveRequirementDebt>;
+  luckEvent: ResolutionResult["luckEvent"];
+  incidentLabel: string | null;
+}): { logEntry: LogEntry; narrativeSeverity: LogEntry["narrativeSeverity"] } {
+  const debtTags: string[] = [];
+  if (input.debt.missingBudget) debtTags.push("presupuesto");
+  if (input.debt.missingTime) debtTags.push("tiempo");
+  if (input.debt.missingQuality) debtTags.push("calidad");
+  if (input.debt.missingRiskCap) debtTags.push("tope de riesgo");
+
+  const narrativeSeverity = getNarrativeSeverity(input.debt, input.luckEvent);
+
+  const explanationDetails: string[] = [];
+  if (debtTags.length > 0) {
+    explanationDetails.push(`Requisitos incumplidos: ${debtTags.join(", ")}.`);
+  }
+  if (input.incidentLabel) {
+    explanationDetails.push(input.incidentLabel);
+  }
+  if (input.luckEvent) {
+    explanationDetails.push(`Suerte: ${input.luckEvent.label}.`);
+  }
+
+  const debtText = debtTags.length > 0 ? ` Deuda activada: ${debtTags.join(", ")}.` : "";
+  const incidentText = input.incidentLabel ? ` ${input.incidentLabel}.` : "";
+  const luckText = input.luckEvent ? ` Suerte: ${input.luckEvent.label}.` : "";
+
+  return {
+    narrativeSeverity,
+    logEntry: {
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      turnNumber: input.turnNumber,
+      actorName: input.actorName,
+      actorType: "ally",
+      text: `${input.actorName} uso ${input.actionTitle}. ${input.actionNarrative}${debtText}${incidentText}${luckText}`,
+      glossaryKeys: input.glossaryKeys,
+      category: input.debt.hasDebt ? "warning" : "action",
+      narrativeSeverity,
+      explanationPayload:
+        explanationDetails.length > 0
+          ? {
+              title: "Impacto de la decision",
+              details: explanationDetails,
+            }
+          : undefined,
+      timestamp: Date.now(),
+    },
+  };
 }
 
 export function resolveDecision(input: {
@@ -196,6 +308,7 @@ export function resolveDecision(input: {
 
   const debt = resolveRequirementDebt(input.project, input.action.requirements);
   const multiplier = getEffectiveMultiplier(actor, input.action);
+  let incidentLabel: string | null = null;
 
   let project = applyProjectDelta(
     input.project,
@@ -213,6 +326,7 @@ export function resolveDecision(input: {
     const debtState = applyDebtPenalty(project, team, actor.id, debt);
     project = debtState.project;
     team = debtState.team;
+    incidentLabel = debtState.incidentLabel;
 
     if (input.action.debtEffects) {
       project = applyProjectDelta(project, input.action.debtEffects.project ?? {});
@@ -228,25 +342,16 @@ export function resolveDecision(input: {
     enemies = applyEnemyDelta(enemies, luckEvent.effects, input.targetEnemyId, 1);
   }
 
-  const debtTags: string[] = [];
-  if (debt.missingBudget) debtTags.push("presupuesto");
-  if (debt.missingTime) debtTags.push("tiempo");
-  if (debt.missingQuality) debtTags.push("calidad");
-  if (debt.missingRiskCap) debtTags.push("tope de riesgo");
-
-  const debtText = debtTags.length > 0 ? ` Deuda activada: ${debtTags.join(", ")}.` : "";
-  const luckText = luckEvent ? ` Suerte: ${luckEvent.label}.` : "";
-
-  const logEntry: LogEntry = {
-    id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    turnNumber: input.turnNumber,
+  const { logEntry, narrativeSeverity } = buildResolutionLog({
     actorName: actor.name,
-    actorType: "ally",
-    text: `${actor.name} uso ${input.action.title}. ${input.action.narrativeResult}${debtText}${luckText}`,
+    actionTitle: input.action.title,
+    actionNarrative: input.action.narrativeResult,
     glossaryKeys: input.action.glossaryKeys,
-    category: debt.hasDebt ? "warning" : "action",
-    timestamp: Date.now(),
-  };
+    turnNumber: input.turnNumber,
+    debt,
+    luckEvent,
+    incidentLabel,
+  });
 
   return {
     project,
@@ -255,5 +360,7 @@ export function resolveDecision(input: {
     logEntry,
     debt,
     luckEvent,
+    narrativeSeverity,
+    incidentLabel,
   };
 }

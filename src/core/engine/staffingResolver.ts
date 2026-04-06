@@ -52,6 +52,9 @@ export function createReplacement(role: CharacterRole, sequence = 1): TeamMember
     maxStress: BALANCE.team.maxStress,
     salary,
     status: "active",
+    recklessDecisionCount: 0,
+    decisionDebtCount: 0,
+    disciplinaryStrikes: 0,
   };
 }
 
@@ -91,12 +94,12 @@ export function hireReplacement(
     ),
   };
 
-  const updatedTeam: TeamMember[] = team.map((member): TeamMember => {
+  const updatedTeam: TeamMember[] = team.map((member) => {
     if (member.role === role && member.status === "out") {
       return {
         ...replacement,
         id: member.id,
-      } as TeamMember;
+      };
     }
 
     if (
@@ -108,10 +111,10 @@ export function hireReplacement(
         ...member,
         assignedRole: member.role,
         status: "active",
-      } as TeamMember;
+      };
     }
 
-    return member as TeamMember;
+    return member;
   });
 
   return {

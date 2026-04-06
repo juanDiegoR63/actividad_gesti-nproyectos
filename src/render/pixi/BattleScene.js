@@ -1673,52 +1673,83 @@ export class BattleScene {
       .stroke({ width: 2, color: toneConfig.border, alpha: disabled ? 0.45 : 0.95 });
 
     const contentWrapWidth = width - (badge ? 82 : 16);
+    const hasConsequenceContent = consequenceLines.length > 0;
+    const charsPerLine = Math.max(14, Math.floor(contentWrapWidth / 5.4));
+    const titleText = hasConsequenceContent ? truncateText(label, charsPerLine + 8) : label;
+    const subtitleTextRaw = typeof subtitle === "string" ? subtitle : String(subtitle ?? "");
+    const subtitleText = hasConsequenceContent
+      ? truncateText(subtitleTextRaw, charsPerLine + 10)
+      : subtitleTextRaw;
 
     const title = new Text({
-      text: label,
+      text: titleText,
       style: {
         fontFamily: "Courier New, monospace",
         fontSize: Math.max(8, Math.round(10 * CANVAS_UI_SCALE)),
         fill: 0xf8fafc,
         fontWeight: "700",
         align: "center",
-        wordWrap: true,
+        wordWrap: !hasConsequenceContent,
         wordWrapWidth: contentWrapWidth,
       },
     });
 
-    const sub = new Text({
-      text: subtitle,
-      style: {
-        fontFamily: "Courier New, monospace",
-        fontSize: Math.max(7, Math.round(8 * CANVAS_UI_SCALE)),
-        fill: 0x94a3b8,
-        align: "center",
-        wordWrap: true,
-        wordWrapWidth: contentWrapWidth,
-      },
-    });
+    let subtitleNode = null;
+    if (subtitleText.trim()) {
+      subtitleNode = new Text({
+        text: subtitleText,
+        style: {
+          fontFamily: "Courier New, monospace",
+          fontSize: Math.max(7, Math.round(8 * CANVAS_UI_SCALE)),
+          fill: 0x94a3b8,
+          align: "center",
+          wordWrap: !hasConsequenceContent,
+          wordWrapWidth: contentWrapWidth,
+        },
+      });
+    }
 
-    const consequenceNodes = consequenceLines.slice(0, 3).map((line) => {
+    const maxConsequenceRows = hasConsequenceContent
+      ? clamp(Math.floor((height - 30) / 11), 0, 3)
+      : 0;
+    const consequenceNodes = consequenceLines.slice(0, maxConsequenceRows).map((line) => {
       return new Text({
-        text: line.text,
+        text: truncateText(line.text, charsPerLine + 6),
         style: {
           fontFamily: "Courier New, monospace",
           fontSize: Math.max(7, Math.round(7 * CANVAS_UI_SCALE)),
           fill: line.color,
           align: "center",
-          wordWrap: true,
-          wordWrapWidth: contentWrapWidth,
         },
       });
     });
 
-    const contentNodes = [title, sub, ...consequenceNodes];
-    const contentGap = 4;
-    const totalContentHeight = contentNodes.reduce((sum, node, index) => {
-      return sum + node.height + (index < contentNodes.length - 1 ? contentGap : 0);
-    }, 0);
-    let cursorY = Math.max(8, Math.round((height - totalContentHeight) / 2));
+    const contentNodes = [title, ...(subtitleNode ? [subtitleNode] : []), ...consequenceNodes];
+    const contentGap = hasConsequenceContent ? 3 : 4;
+    const getContentHeight = () => {
+      return contentNodes.reduce((sum, node, index) => {
+        return sum + node.height + (index < contentNodes.length - 1 ? contentGap : 0);
+      }, 0);
+    };
+
+    const maxContentHeight = Math.max(20, height - 12);
+    while (consequenceNodes.length > 0 && getContentHeight() > maxContentHeight) {
+      const removedNode = consequenceNodes.pop();
+      const nodeIndex = contentNodes.lastIndexOf(removedNode);
+      if (nodeIndex >= 0) {
+        contentNodes.splice(nodeIndex, 1);
+      }
+    }
+
+    if (subtitleNode && getContentHeight() > maxContentHeight) {
+      const subtitleIndex = contentNodes.indexOf(subtitleNode);
+      if (subtitleIndex >= 0) {
+        contentNodes.splice(subtitleIndex, 1);
+      }
+    }
+
+    const totalContentHeight = getContentHeight();
+    let cursorY = Math.max(6, Math.round((height - totalContentHeight) / 2));
     contentNodes.forEach((node) => {
       node.x = Math.max(8, Math.round((width - node.width) / 2));
       node.y = cursorY;
@@ -2405,18 +2436,33 @@ export class BattleScene {
     this.uiLayer.addChild(panel);
 
     const phaseLabel = snapshot.phaseTitle ?? `Fase ${snapshot.phaseIndex + 1}`;
+    const phaseCount = Math.max(1, snapshot.phaseCount ?? 5);
+    const waveTotal = Math.max(1, snapshot.encounterTotalInPhase ?? 1);
+    const levelText = `Nivel ${snapshot.phaseIndex + 1}/${phaseCount}`;
+    const waveText = `Tanda ${snapshot.encounterIndex + 1}/${waveTotal}`;
 
     const context = makeLabel(
-      `${snapshot.teamName} • ${phaseLabel} • Encuentro ${snapshot.encounterIndex + 1}`,
+      `${snapshot.teamName} • ${levelText} • ${waveText} • ${phaseLabel}`,
       8,
       0x94a3b8,
     );
     context.x = layout.top.x + 12;
     context.y = layout.top.y + 12;
 
+    let scenarioLine = null;
+    if (snapshot.scenarioName) {
+      scenarioLine = makeLabel(
+        `Escenario: ${truncateText(snapshot.scenarioName, 28)} - ${truncateText(snapshot.scenarioSummary || "", 64)}`,
+        7,
+        0x7dd3fc,
+      );
+      scenarioLine.x = layout.top.x + 12;
+      scenarioLine.y = layout.top.y + 30;
+    }
+
     const title = makeLabel(snapshot.encounterTitle.toUpperCase(), 13, 0xe2e8f0);
     title.x = layout.top.x + 12;
-    title.y = layout.top.y + 46;
+    title.y = layout.top.y + 56;
 
     const subtitle = new Text({
       text: snapshot.encounterSubtitle,
@@ -2429,12 +2475,16 @@ export class BattleScene {
       },
     });
     subtitle.x = layout.top.x + 12;
-    subtitle.y = layout.top.y + 78;
+    subtitle.y = layout.top.y + 88;
 
     const statusBadge = new Graphics()
       .roundRect(layout.top.x + layout.top.w - 210, layout.top.y + 12, 196, 34, 7)
       .fill({ color: snapshot.isBoss ? 0xf59e0b : 0x60a5fa, alpha: 0.95 });
-    const statusText = makeLabel(snapshot.isBoss ? "ENCUENTRO BOSS" : "ENCUENTRO NORMAL", 8, 0x0f172a);
+    const statusText = makeLabel(
+      snapshot.isBoss ? "TANDA FINAL BOSS" : "TANDA OPERATIVA",
+      8,
+      0x0f172a,
+    );
     statusText.x = layout.top.x + layout.top.w - 200;
     statusText.y = layout.top.y + 22;
 
@@ -2445,10 +2495,18 @@ export class BattleScene {
       layout.top.x + 12,
       layout.top.x + layout.top.w - turnLabel.width - 12,
     );
-    turnLabel.y = layout.top.y + 46;
+    turnLabel.y = layout.top.y + 56;
     this.turnLabelRef = turnLabel;
 
-    this.uiLayer.addChild(context, title, subtitle, statusBadge, statusText, turnLabel);
+    this.uiLayer.addChild(
+      context,
+      ...(scenarioLine ? [scenarioLine] : []),
+      title,
+      subtitle,
+      statusBadge,
+      statusText,
+      turnLabel,
+    );
 
     const metricRowY = layout.top.y + layout.top.h - Math.max(58, Math.round(29 * CANVAS_UI_SCALE));
     const meterGap = 14;
@@ -2469,10 +2527,23 @@ export class BattleScene {
       });
     });
 
+    const baseInfoY = metricRowY - Math.max(10, Math.round(5 * CANVAS_UI_SCALE));
+
+    if (snapshot.latestIncidentTitle) {
+      const incidentBadge = makeLabel(
+        `Incidente reciente: ${truncateText(snapshot.latestIncidentTitle, 44)}`,
+        7,
+        0xfda4af,
+      );
+      incidentBadge.x = layout.top.x + 12;
+      incidentBadge.y = baseInfoY - 12;
+      this.uiLayer.addChild(incidentBadge);
+    }
+
     if (snapshot.lastLuckLabel) {
       const luck = makeLabel(`Ultimo evento de suerte: ${snapshot.lastLuckLabel}`, 8, 0x67e8f9);
       luck.x = layout.top.x + 12;
-      luck.y = metricRowY - Math.max(10, Math.round(5 * CANVAS_UI_SCALE));
+      luck.y = baseInfoY;
       this.uiLayer.addChild(luck);
     }
   }
@@ -2538,27 +2609,31 @@ export class BattleScene {
   }
 
   getThreatIntelRows(snapshot, intentsRect) {
-    const rowGap = 12;
+    const rowGap = 10;
     const cardInset = 12;
     const headerHeight = 28;
     const verticalMargin = 10;
+    const minRowHeight = 64;
     const listTop = intentsRect.y + headerHeight + verticalMargin;
-    const intelCandidates = snapshot.enemies.slice(0, 4);
+    const intelCandidates = snapshot.enemies.filter((enemy) => enemy.hp > 0).slice(0, 6);
     const availableListHeight = Math.max(36, intentsRect.h - headerHeight - verticalMargin * 2);
-    const maxVisibleRows = Math.max(
-      1,
-      Math.min(
-        intelCandidates.length,
-        Math.floor((availableListHeight + rowGap) / (62 + rowGap)),
-      ),
-    );
+    const normalizedMinRowHeight = Math.min(minRowHeight, availableListHeight);
+    const maxVisibleRows = intelCandidates.length
+      ? Math.max(
+        1,
+        Math.min(
+          intelCandidates.length,
+          Math.floor((availableListHeight + rowGap) / (normalizedMinRowHeight + rowGap)),
+        ),
+      )
+      : 0;
     const intelEnemies = intelCandidates.slice(0, maxVisibleRows);
     const rowHeight = intelEnemies.length
       ? Math.max(
-        42,
+        normalizedMinRowHeight,
         Math.floor((availableListHeight - rowGap * (intelEnemies.length - 1)) / intelEnemies.length),
       )
-      : 62;
+      : normalizedMinRowHeight;
 
     return {
       rowGap,
@@ -2566,6 +2641,7 @@ export class BattleScene {
       rowHeight,
       intelEnemies,
       cardInset,
+      hiddenCount: Math.max(0, intelCandidates.length - intelEnemies.length),
     };
   }
 
@@ -2612,6 +2688,8 @@ export class BattleScene {
     const cardWidth = intentsRect.w - cardInset * 2;
     const contentPadX = 10;
     const contentGap = 4;
+    const textWidth = cardWidth - contentPadX * 2;
+    const charsPerLine = Math.max(16, Math.floor(textWidth / 5.2));
 
     const card = new Graphics()
       .roundRect(0, 0, cardWidth, rowHeight, 7)
@@ -2620,9 +2698,9 @@ export class BattleScene {
 
     entry.addChild(card);
 
-    const name = makeLabel(enemy.name.toUpperCase(), 8, 0xf8fafc);
+    const name = makeLabel(truncateText(enemy.name.toUpperCase(), charsPerLine + 6), 8, 0xf8fafc);
 
-    const hp = makeLabel(`HP ${Math.round(enemy.hp)}`, 8, 0xfda4af);
+    const hp = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 7, 0xfda4af);
 
     const hasActiveIntent = enemy.hp > 0 && Boolean(enemy.intent);
     const intentLabelText = hasActiveIntent
@@ -2630,34 +2708,21 @@ export class BattleScene {
       : "SIN AMENAZA ACTIVA";
 
     const intent = makeLabel(
-      intentLabelText,
+      truncateText(intentLabelText, charsPerLine + 2),
       7,
       hasActiveIntent ? 0xfda4af : 0x94a3b8,
     );
 
+    const detailColor = hasActiveIntent ? 0xcbd5e1 : 0x64748b;
     const detailText = hasActiveIntent
-      ? truncateText(enemy.intent.previewText, 64)
-      : "No hay accion prevista en este objetivo.";
-    const intentDetail = new Text({
-      text: detailText,
-      style: {
-        fontFamily: "Courier New, monospace",
-        fontSize: Math.max(7, Math.round(7 * CANVAS_UI_SCALE)),
-        fill: hasActiveIntent ? 0xcbd5e1 : 0x64748b,
-        wordWrap: true,
-        wordWrapWidth: cardWidth - contentPadX * 2,
-      },
-    });
+      ? truncateText(enemy.intent.previewText, charsPerLine + 10)
+      : truncateText("No hay accion prevista en este objetivo.", charsPerLine + 6);
 
     const markerHeight = 14;
     const markerY = 6;
     const topReserve = isSelected ? markerY + markerHeight + 6 : 8;
     const bottomReserve = hp.height + 8;
-    const contentHeight = name.height + contentGap + intent.height + contentGap + intentDetail.height;
-    const availableContentHeight = Math.max(10, rowHeight - topReserve - bottomReserve);
-    const centeredOffset = Math.floor((availableContentHeight - contentHeight) / 2);
-    const contentTop =
-      topReserve + clamp(centeredOffset, 0, Math.max(0, availableContentHeight - contentHeight));
+    const contentTop = topReserve;
 
     name.x = contentPadX;
     name.y = contentTop;
@@ -2665,13 +2730,24 @@ export class BattleScene {
     intent.x = contentPadX;
     intent.y = name.y + name.height + contentGap;
 
-    intentDetail.x = contentPadX;
-    intentDetail.y = intent.y + intent.height + contentGap;
+    const detailTop = intent.y + intent.height + contentGap;
+    const detailBottomLimit = rowHeight - bottomReserve - 2;
+    let intentDetail = null;
+
+    if (detailBottomLimit - detailTop >= 8) {
+      intentDetail = makeLabel(detailText, 7, detailColor);
+      intentDetail.x = contentPadX;
+      intentDetail.y = detailTop;
+      if (intentDetail.y + intentDetail.height > detailBottomLimit) {
+        intentDetail.destroy();
+        intentDetail = null;
+      }
+    }
 
     hp.x = contentPadX;
     hp.y = rowHeight - hp.height - 6;
 
-    entry.addChild(name, hp, intent, intentDetail);
+    entry.addChild(name, hp, intent, ...(intentDetail ? [intentDetail] : []));
 
     if (isSelected) {
       const markerWidth = 68;
@@ -2715,7 +2791,9 @@ export class BattleScene {
     if (!hasActiveIntent) {
       intent.eventMode = "none";
     }
-    intentDetail.eventMode = "none";
+    if (intentDetail) {
+      intentDetail.eventMode = "none";
+    }
     this.uiLayer.addChild(entry);
   }
 
@@ -2807,7 +2885,15 @@ export class BattleScene {
   }
 
   drawIntelRail(snapshot, layout, selectedEnemyId) {
-    const intentsHeight = Math.min(340, layout.left.h * 0.4);
+    const minIntentsHeight = 120;
+    const minLogHeight = Math.max(96, Math.round(layout.left.h * 0.28));
+    const maxIntentsHeight = Math.max(64, layout.left.h - layout.gap - minLogHeight);
+    const desiredIntentsHeight = Math.round(layout.left.h * 0.52);
+    const intentsHeight = clamp(
+      desiredIntentsHeight,
+      Math.min(minIntentsHeight, maxIntentsHeight),
+      Math.min(360, maxIntentsHeight),
+    );
     const intentsRect = {
       x: layout.left.x,
       y: layout.left.y,
@@ -2828,12 +2914,29 @@ export class BattleScene {
     intelTitle.y = intentsRect.y + 10;
     this.uiLayer.addChild(intelTitle);
 
-    const { rowGap, listTop, rowHeight, intelEnemies, cardInset } = this.getThreatIntelRows(snapshot, intentsRect);
+    const { rowGap, listTop, rowHeight, intelEnemies, cardInset, hiddenCount } = this.getThreatIntelRows(
+      snapshot,
+      intentsRect,
+    );
 
-    intelEnemies.forEach((enemy, index) => {
-      const rowY = listTop + index * (rowHeight + rowGap);
-      this.drawThreatIntelEntry(snapshot, intentsRect, enemy, rowY, rowHeight, selectedEnemyId, cardInset);
-    });
+    if (!intelEnemies.length) {
+      const emptyIntel = makeLabel("Sin amenazas activas", 8, 0x64748b);
+      emptyIntel.x = intentsRect.x + 10;
+      emptyIntel.y = listTop + 6;
+      this.uiLayer.addChild(emptyIntel);
+    } else {
+      intelEnemies.forEach((enemy, index) => {
+        const rowY = listTop + index * (rowHeight + rowGap);
+        this.drawThreatIntelEntry(snapshot, intentsRect, enemy, rowY, rowHeight, selectedEnemyId, cardInset);
+      });
+    }
+
+    if (hiddenCount > 0) {
+      const hiddenLabel = makeLabel(`+${hiddenCount} amenazas adicionales`, 7, 0x93c5fd);
+      hiddenLabel.x = intentsRect.x + intentsRect.w - hiddenLabel.width - 10;
+      hiddenLabel.y = intentsRect.y + 12;
+      this.uiLayer.addChild(hiddenLabel);
+    }
 
     this.uiLayer.addChild(this.makePanel(logRect.x, logRect.y, logRect.w, logRect.h, 10));
 
@@ -2910,6 +3013,8 @@ export class BattleScene {
     const availableH = layout.right.h - 96 - gap * (rows - 1);
     const btnW = availableW / cols;
     const btnH = availableH / rows;
+    const maxConsequenceLines = btnH >= 126 ? 3 : btnH >= 96 ? 2 : btnH >= 74 ? 1 : 0;
+    const summaryCharLimit = btnW >= 220 ? 74 : btnW >= 196 ? 62 : 50;
 
     actions.forEach((action, index) => {
       const col = index % cols;
@@ -2923,8 +3028,8 @@ export class BattleScene {
         width: btnW,
         height: btnH,
         label: action.title,
-        subtitle: action.summary,
-        consequenceLines: buildActionConsequenceLines(action, action.hasDebt, 3),
+        subtitle: truncateText(action.summary, summaryCharLimit),
+        consequenceLines: buildActionConsequenceLines(action, action.hasDebt, maxConsequenceLines),
         tone: action.hasDebt ? "danger" : "default",
         badge: action.hasDebt ? "DEUDA" : getLuckProfileBadge(action.luckProfile),
         onTap: () => {

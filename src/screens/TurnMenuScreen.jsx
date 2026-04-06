@@ -40,7 +40,7 @@ export function TurnMenuScreen() {
           </div>
           <div className="border-2 border-slate-700 bg-slate-950 p-4">
             <p className="text-xs uppercase tracking-widest text-slate-500">Fase actual</p>
-            <p className="mt-2 text-lg font-semibold text-slate-200">Vertical Slice Fase 1</p>
+            <p className="mt-2 text-lg font-semibold text-slate-200">Campana completa 5 fases</p>
           </div>
         </div>
 
