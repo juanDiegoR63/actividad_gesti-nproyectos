@@ -1,0 +1,45 @@
+export const BALANCE = {
+  project: {
+    budgetStart: 100,
+    timeStart: 100,
+    qualityStart: 75,
+    riskStart: 20,
+    progressStart: 0,
+    maxBudget: 100,
+    maxTime: 100,
+    maxQuality: 100,
+    maxRisk: 100,
+    maxProgress: 100,
+  },
+  team: {
+    energyStart: 100,
+    stressStart: 10,
+    maxEnergy: 100,
+    maxStress: 100,
+    salaryByRole: {
+      director: 12,
+      planning: 10,
+      quality: 11,
+    },
+  },
+  luck: {
+    baseChance: 0.05,
+    maxChance: 0.1,
+    riskInfluence: 0.0008,
+    stressInfluence: 0.0005,
+  },
+  staffing: {
+    hireBudgetPercent: 0.08,
+    hireTimePenalty: 1,
+    hireRiskPenalty: 4,
+    hireQualityPenalty: 3,
+    coverStressPenalty: 25,
+    coverEfficiencyMultiplier: 0.85,
+  },
+  combat: {
+    maxActionsPerTurn: 4,
+    enemyStressHit: 8,
+    enemyRiskHit: 6,
+    enemyTimeHit: 2,
+  },
+} as const;

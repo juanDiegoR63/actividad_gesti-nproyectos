@@ -1,20 +1,41 @@
-import { useProjectEngine } from "./hooks/useProjectEngine";
-import { SetupScreen } from "./screens/SetupScreen";
-import { GameScreen } from "./screens/GameScreen";
-import { EndScreen } from "./screens/EndScreen";
+import { useEffect } from "react";
+import { useGameStore } from "./core/store/gameStore";
+import { TurnMenuScreen } from "./screens/TurnMenuScreen";
+import { TurnSetupScreen } from "./screens/TurnSetupScreen";
+import { TurnBattleScreen } from "./screens/TurnBattleScreen";
+import { TurnEndScreen } from "./screens/TurnEndScreen";
+import { audioService } from "./core/services/audioService";
 
 function App() {
-  const engine = useProjectEngine();
+  const currentScreen = useGameStore((state) => state.currentScreen);
 
-  if (engine.estado.faseActual === 0) {
-    return <SetupScreen engine={engine} />;
+  useEffect(() => {
+    const unlockAudio = () => {
+      void audioService.unlock();
+    };
+
+    globalThis.addEventListener("pointerdown", unlockAudio, { once: true });
+    globalThis.addEventListener("keydown", unlockAudio, { once: true });
+
+    return () => {
+      globalThis.removeEventListener("pointerdown", unlockAudio);
+      globalThis.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  if (currentScreen === "menu") {
+    return <TurnMenuScreen />;
   }
 
-  if (engine.estado.faseActual > 4) {
-    return <EndScreen engine={engine} />;
+  if (currentScreen === "creation") {
+    return <TurnSetupScreen />;
   }
 
-  return <GameScreen engine={engine} />;
+  if (currentScreen === "results") {
+    return <TurnEndScreen />;
+  }
+
+  return <TurnBattleScreen />;
 }
 
 export default App;
