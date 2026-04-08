@@ -1,0 +1,78 @@
+export const BALANCE = {
+  project: {
+    budgetStart: 280,
+    timeStart: 245,
+    qualityStart: 82,
+    riskStart: 15,
+    progressStart: 0,
+    maxBudget: 280,
+    maxTime: 245,
+    maxQuality: 100,
+    maxRisk: 100,
+    maxProgress: 100,
+  },
+  team: {
+    energyStart: 170,
+    stressStart: 6,
+    maxEnergy: 170,
+    maxStress: 100,
+    salaryByRole: {
+      director: 4,
+      planning: 3,
+      quality: 4,
+    },
+  },
+  luck: {
+    baseChance: 0.05,
+    maxChance: 0.1,
+    riskInfluence: 0.0008,
+    stressInfluence: 0.0005,
+  },
+  staffing: {
+    hireBudgetPercent: 0.16,
+    hireTimePenalty: 2,
+    hireRiskPenalty: 8,
+    hireQualityPenalty: 7,
+    coverStressPenalty: 28,
+    coverEfficiencyMultiplier: 0.82,
+  },
+  combat: {
+    penaltySeverityMultiplier: 1.5,
+    maxActionsPerTurn: 4,
+    enemyStressHit: 8,
+    enemyRiskHit: 6,
+    enemyTimeHit: 2,
+    encounterPressure: {
+      timePerRound: 0.7,
+      budgetIfProcurementActive: 0,
+      riskIfMultipleEnemies: 1.2,
+      stressOnStrongIntent: 2,
+      strongIntentRiskThreshold: 7,
+      strongIntentTimeThreshold: -2,
+    },
+    debtPenalty: {
+      missingBudget: { risk: 8, quality: -5 },
+      missingTime: { risk: 10, actorStress: 12 },
+      missingQuality: { progress: -8, risk: 4 },
+      missingRiskCap: { risk: 7, incidentChance: 0.3 },
+      riskCapIncident: { time: -1, quality: -2 },
+    },
+    debtChainPenalty: {
+      triggerCount: 2,
+      project: { time: -1, budget: -2, risk: 5 },
+    },
+    passivePenalty: {
+      secondUseProject: { progress: -2, risk: 2 },
+      thirdUseProject: { time: -2 },
+      thirdUseMomentumGain: 1,
+    },
+    enemyMomentum: {
+      maxStacks: 5,
+      riskPerStack: 0.5,
+    },
+    bossClock: {
+      roundsToCrisis: 3,
+      crisisProject: { time: -1, progress: -2, risk: 5 },
+    },
+  },
+} as const;
