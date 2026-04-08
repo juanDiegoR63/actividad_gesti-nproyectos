@@ -240,17 +240,17 @@ export const scenarioCatalog: ProjectScenario[] = [
     name: "Retail Omnicanal",
     sector: "retail",
     summary:
-      "Transformacion comercial con picos de demanda, integraciones de stock y presion por fecha de campana.",
+      "Transformacion comercial con picos de demanda, integraciones de stock y presion por fecha de campaña.",
     difficultyModifier: 1.04,
     phaseOverrides: {
       "phase-3": {
         title: "Fase 3: Ejecucion Comercial",
       },
       "phase-5": {
-        title: "Fase 5: Cierre de Campana",
+        title: "Fase 5: Cierre de Campaña",
         encounterOverrides: {
           "phase5-boss": {
-            title: "Directorio de Campana Final",
+            title: "Directorio de Campaña Final",
             subtitle:
               "La direccion comercial valida cierre y exige resultados de conversion con soporte post-lanzamiento.",
           },
@@ -293,7 +293,7 @@ export const scenarioCatalog: ProjectScenario[] = [
       },
       {
         id: "retail-random",
-        title: "Campana Viral Favorable",
+        title: "Campaña Viral Favorable",
         text: "Una reaccion positiva del mercado mejora el margen para estabilizar la entrega.",
         trigger: "random",
         chance: 0.1,

@@ -1,46 +1,119 @@
 const NOTE = {
+  Bb2: 116.54,
   C3: 130.81,
   D3: 146.83,
+  Eb3: 155.56,
   E3: 164.81,
+  F3: 174.61,
+  Gb3: 185.00,
   G3: 196,
+  Ab3: 207.65,
   A3: 220,
+  Bb3: 233.08,
+  B3: 246.94,
   C4: 261.63,
   D4: 293.66,
+  Eb4: 311.13,
   E4: 329.63,
+  F4: 349.23,
+  Gb4: 369.99,
   G4: 392,
+  Ab4: 415.30,
   A4: 440,
+  Bb4: 466.16,
+  B4: 493.88,
+  C5: 523.25,
+  D5: 587.33,
+  E5: 659.25,
 };
 
 const MUSIC_PATTERNS = {
   menu: {
-    notes: [NOTE.C4, NOTE.E4, NOTE.G4, NOTE.E4, NOTE.D4, NOTE.G4],
-    intervalMs: 320,
+    // Inspired by Carol of the Bells - Pattern: B-A-G-B with variations
+    notes: [
+      NOTE.B3, NOTE.A3, NOTE.G3, NOTE.B3, 
+      NOTE.B3, NOTE.A3, NOTE.G3, NOTE.B3,
+      NOTE.C4, NOTE.B3, NOTE.A3, NOTE.C4,
+      NOTE.D4, NOTE.C4, NOTE.B3, NOTE.D4,
+      NOTE.B3, NOTE.A3, NOTE.G3, NOTE.E3,
+      NOTE.G3, NOTE.A3, NOTE.B3, NOTE.C4
+    ],
+    intervalMs: 200,
     type: "square",
-    volume: 0.07,
+    volume: 0.20,
   },
   creation: {
-    notes: [NOTE.D4, NOTE.G4, NOTE.A4, NOTE.G4, NOTE.E4, NOTE.G4],
-    intervalMs: 280,
+    // Dark harmonic minor progression
+    notes: [
+      NOTE.D4, NOTE.F4, NOTE.A4, NOTE.D5,
+      NOTE.C4, NOTE.Eb4, NOTE.G4, NOTE.C5,
+      NOTE.Bb3, NOTE.D4, NOTE.F4, NOTE.Bb4,
+      NOTE.A3, NOTE.C4, NOTE.E4, NOTE.A4,
+      NOTE.G3, NOTE.Bb3, NOTE.D4, NOTE.G4,
+      NOTE.F3, NOTE.A3, NOTE.C4, NOTE.F4
+    ],
+    intervalMs: 220,
     type: "triangle",
-    volume: 0.065,
+    volume: 0.19,
   },
   phase1_normal: {
-    notes: [NOTE.C3, NOTE.G3, NOTE.C4, NOTE.D4, NOTE.G3, NOTE.E4],
-    intervalMs: 250,
+    // Battle theme with Carol of the Bells style urgency
+    notes: [
+      NOTE.E4, NOTE.D4, NOTE.C4, NOTE.E4,
+      NOTE.E4, NOTE.D4, NOTE.C4, NOTE.E4,
+      NOTE.G4, NOTE.F4, NOTE.E4, NOTE.G4,
+      NOTE.A4, NOTE.G4, NOTE.F4, NOTE.A4,
+      NOTE.C5, NOTE.B4, NOTE.A4, NOTE.C5,
+      NOTE.B4, NOTE.A4, NOTE.G4, NOTE.B4,
+      NOTE.A4, NOTE.G4, NOTE.F4, NOTE.A4,
+      NOTE.G4, NOTE.F4, NOTE.E4, NOTE.D4
+    ],
+    intervalMs: 180,
     type: "square",
-    volume: 0.06,
+    volume: 0.18,
   },
   phase1_boss: {
-    notes: [NOTE.C3, NOTE.D3, NOTE.C3, NOTE.G3, NOTE.C4, NOTE.G3],
-    intervalMs: 210,
+    // Castlevania-style horror theme: chromatic descents, tritones, and gothic darkness
+    notes: [
+      // Intro amenazante - tritono (el "intervalo del diablo")
+      NOTE.C3, NOTE.Gb3, NOTE.C3, NOTE.Gb3,
+      // Descenso cromático terrorífico
+      NOTE.Bb3, NOTE.A3, NOTE.Ab3, NOTE.G3,
+      NOTE.Gb3, NOTE.F3, NOTE.E3, NOTE.Eb3,
+      // Saltos dramáticos de octava
+      NOTE.D3, NOTE.D4, NOTE.C3, NOTE.C4,
+      // Progresión menor oscura
+      NOTE.Ab3, NOTE.C4, NOTE.Eb4, NOTE.Ab4,
+      NOTE.G3, NOTE.B3, NOTE.D4, NOTE.G4,
+      // Tritono alto (más horror)
+      NOTE.C4, NOTE.Gb4, NOTE.C4, NOTE.Gb4,
+      // Climax con notas bajas amenazantes
+      NOTE.Bb3, NOTE.F3, NOTE.D3, NOTE.Bb2,
+      // Patrón de Castlevania: rápido y caótico
+      NOTE.E4, NOTE.Eb4, NOTE.D4, NOTE.Eb4,
+      NOTE.C4, NOTE.B3, NOTE.Bb3, NOTE.A3,
+      // Final oscuro descendente
+      NOTE.Ab3, NOTE.G3, NOTE.Gb3, NOTE.F3,
+      NOTE.E3, NOTE.Eb3, NOTE.D3, NOTE.C3
+    ],
+    intervalMs: 140,
     type: "sawtooth",
-    volume: 0.07,
+    volume: 0.24,
   },
   results: {
-    notes: [NOTE.C4, NOTE.E4, NOTE.G4, NOTE.A4, NOTE.G4, NOTE.E4],
-    intervalMs: 300,
+    // Triumphant ending with ascending pattern
+    notes: [
+      NOTE.C4, NOTE.E4, NOTE.G4, NOTE.C5,
+      NOTE.B4, NOTE.G4, NOTE.E4, NOTE.B3,
+      NOTE.A4, NOTE.F4, NOTE.D4, NOTE.A3,
+      NOTE.G4, NOTE.E4, NOTE.C4, NOTE.G3,
+      NOTE.C5, NOTE.A4, NOTE.F4, NOTE.C4,
+      NOTE.D5, NOTE.B4, NOTE.G4, NOTE.D4,
+      NOTE.E4, NOTE.G4, NOTE.C5, NOTE.E5
+    ],
+    intervalMs: 240,
     type: "triangle",
-    volume: 0.06,
+    volume: 0.20,
   },
 };
 

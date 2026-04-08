@@ -27,7 +27,7 @@ function round2(value: number): number {
 function scaleProjectPenalty(key: ProjectResourceKey, value: number): number {
   const multiplier = BALANCE.combat.penaltySeverityMultiplier;
 
-  if (multiplier === 1 || value === 0) {
+  if (value === 0) {
     return value;
   }
 
@@ -129,36 +129,50 @@ function applyEnemyDelta(
   effects: DecisionEffects,
   targetEnemyId: string,
   multiplier: number,
-): EnemyUnit[] {
+): { enemies: EnemyUnit[]; enemiesKilled: number } {
   const hasTargetEffects = Boolean(effects.targetEnemy);
   const hasAllEnemyEffects = Boolean(effects.allEnemies);
 
   if (!hasTargetEffects && !hasAllEnemyEffects) {
-    return enemies;
+    return { enemies, enemiesKilled: 0 };
   }
 
-  return enemies.map((enemy) => {
+  let enemiesKilled = 0;
+
+  const updatedEnemies = enemies.map((enemy) => {
     const shouldApplyTarget = enemy.id === targetEnemyId && hasTargetEffects;
 
     let hpDelta = 0;
     let threatDelta = 0;
 
     if (shouldApplyTarget) {
-      hpDelta += (effects.targetEnemy?.hp ?? 0) * multiplier;
+      hpDelta += (effects.targetEnemy?.hp ?? 0) * multiplier * 5; // 5x damage multiplier
       threatDelta += (effects.targetEnemy?.threat ?? 0) * multiplier;
     }
 
     if (hasAllEnemyEffects) {
-      hpDelta += effects.allEnemies?.hp ?? 0;
+      hpDelta += (effects.allEnemies?.hp ?? 0) * 5; // 5x damage multiplier for AOE
       threatDelta += effects.allEnemies?.threat ?? 0;
+    }
+
+    // Calculate new HP with instant kill if damage exceeds max HP
+    const newHp = enemy.hp + hpDelta;
+    const shouldInstantKill = hpDelta < 0 && Math.abs(hpDelta) >= enemy.hp;
+    const finalHp = shouldInstantKill ? 0 : clamp(newHp, 0, enemy.maxHp);
+
+    // Count if enemy was killed (had HP before and now has 0)
+    if (enemy.hp > 0 && finalHp <= 0) {
+      enemiesKilled++;
     }
 
     return {
       ...enemy,
-      hp: clamp(enemy.hp + hpDelta, 0, enemy.maxHp),
+      hp: finalHp,
       threat: clamp(enemy.threat + threatDelta, 0, 99),
     };
   });
+
+  return { enemies: updatedEnemies, enemiesKilled };
 }
 
 function applyDebtPenalty(
@@ -345,12 +359,26 @@ export function resolveDecision(input: {
     scaleProjectDelta(input.action.baseEffects.project, multiplier),
   );
   let team = applyActorDelta(input.team, actor.id, input.action.baseEffects.actor);
-  let enemies = applyEnemyDelta(
+  
+  const enemyResult = applyEnemyDelta(
     input.enemies,
     input.action.baseEffects,
     input.targetEnemyId,
     multiplier,
   );
+  let enemies = enemyResult.enemies;
+  let totalEnemiesKilled = enemyResult.enemiesKilled;
+
+  // Apply stress to actor based on damage dealt to enemies (33% of effective damage)
+  const baseTargetDamage = input.action.baseEffects.targetEnemy?.hp ?? 0;
+  const baseAllEnemiesDamage = input.action.baseEffects.allEnemies?.hp ?? 0;
+  const effectiveDamage =
+    baseTargetDamage * multiplier * 5 +
+    baseAllEnemiesDamage * 5;
+  if (effectiveDamage < 0) {
+    const stressPenalty = Math.round(Math.abs(effectiveDamage) / 3);
+    team = applyActorDelta(team, actor.id, { stress: stressPenalty });
+  }
 
   if (debt.hasDebt) {
     const debtState = applyDebtPenalty(project, team, actor.id, debt);
@@ -361,7 +389,18 @@ export function resolveDecision(input: {
     if (input.action.debtEffects) {
       project = applyProjectDelta(project, input.action.debtEffects.project ?? {});
       team = applyActorDelta(team, actor.id, input.action.debtEffects.actor);
-      enemies = applyEnemyDelta(enemies, input.action.debtEffects, input.targetEnemyId, 1);
+      const debtEnemyResult = applyEnemyDelta(enemies, input.action.debtEffects, input.targetEnemyId, 1);
+      enemies = debtEnemyResult.enemies;
+      totalEnemiesKilled += debtEnemyResult.enemiesKilled;
+      
+      // Apply stress for debt damage (33%)
+      const debtTargetDamage = input.action.debtEffects.targetEnemy?.hp ?? 0;
+      const debtAllEnemiesDamage = input.action.debtEffects.allEnemies?.hp ?? 0;
+      const effectiveDebtDamage = debtTargetDamage * 5 + debtAllEnemiesDamage * 5;
+      if (effectiveDebtDamage < 0) {
+        const debtStressPenalty = Math.round(Math.abs(effectiveDebtDamage) / 3);
+        team = applyActorDelta(team, actor.id, { stress: debtStressPenalty });
+      }
     }
   }
 
@@ -369,7 +408,26 @@ export function resolveDecision(input: {
   if (luckEvent) {
     project = applyProjectDelta(project, luckEvent.effects.project ?? {});
     team = applyActorDelta(team, actor.id, luckEvent.effects.actor);
-    enemies = applyEnemyDelta(enemies, luckEvent.effects, input.targetEnemyId, 1);
+    const luckEnemyResult = applyEnemyDelta(enemies, luckEvent.effects, input.targetEnemyId, 1);
+    enemies = luckEnemyResult.enemies;
+    totalEnemiesKilled += luckEnemyResult.enemiesKilled;
+    
+    // Apply stress for luck damage (33%)
+    const luckTargetDamage = luckEvent.effects.targetEnemy?.hp ?? 0;
+    const luckAllEnemiesDamage = luckEvent.effects.allEnemies?.hp ?? 0;
+    const effectiveLuckDamage = luckTargetDamage * 5 + luckAllEnemiesDamage * 5;
+    if (effectiveLuckDamage < 0) {
+      const luckStressPenalty = Math.round(Math.abs(effectiveLuckDamage) / 3);
+      team = applyActorDelta(team, actor.id, { stress: luckStressPenalty });
+    }
+  }
+
+  // Reduce stress by 5 for each enemy killed
+  if (totalEnemiesKilled > 0) {
+    team = team.map((member) => ({
+      ...member,
+      stress: clamp(member.stress - (5 * totalEnemiesKilled), 0, member.maxStress),
+    }));
   }
 
   const { logEntry, narrativeSeverity } = buildResolutionLog({

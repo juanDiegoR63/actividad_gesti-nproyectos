@@ -24,6 +24,8 @@ function hasDebt(project, option) {
 }
 
 export function TurnBattleScreen() {
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  
   const {
     teamName,
     phaseIndex,
@@ -303,6 +305,84 @@ export function TurnBattleScreen() {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
+      {/* Help Button */}
+      <button
+        onClick={() => setShowHelpModal(true)}
+        className="fixed top-4 right-4 z-50 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition-colors"
+        title="Ayuda - Reglas del juego"
+      >
+        ?
+      </button>
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-75">
+          <div className="bg-slate-800 border-2 border-slate-600 rounded-lg p-6 max-w-3xl max-h-[90vh] overflow-y-auto text-white shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-yellow-400">📖 REGLAS DEL JUEGO</h2>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="text-3xl text-slate-400 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              {/* Combat Rules */}
+              <section>
+                <h3 className="text-xl font-bold text-red-400 mb-2">⚔️ COMBATE</h3>
+                <ul className="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>Variación de daño real:</strong> Un ataque puede desviarse entre <strong>+20%</strong> y <strong>-34.4%</strong> según rol, estrés y cobertura</li>
+                  <li><strong>Estrés por atacar:</strong> Cada ataque que hagas genera estrés en tu personaje equivalente al <strong>33% del daño causado</strong></li>
+                  <li><strong>Muerte instantánea:</strong> Si el daño iguala o supera el HP del enemigo, lo elimina de una</li>
+                  <li><strong>Ataques de área:</strong> Acciones con "(TODOS)" afectan a todos los enemigos simultáneamente</li>
+                </ul>
+              </section>
+
+              {/* Stress Management */}
+              <section>
+                <h3 className="text-xl font-bold text-orange-400 mb-2">😰 GESTIÓN DE ESTRÉS</h3>
+                <ul className="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>Estrés máximo = 100:</strong> Si un personaje llega a 100, <strong>renuncia inmediatamente</strong></li>
+                  <li><strong>Bonus por victoria:</strong> Eliminar un enemigo reduce <strong>-5 estrés a todo el equipo</strong></li>
+                  <li><strong>Bonus por Boss:</strong> Derrotar un BOSS reduce el estrés de todo el equipo en <strong>50%</strong></li>
+                </ul>
+              </section>
+
+              {/* Resources */}
+              <section>
+                <h3 className="text-xl font-bold text-green-400 mb-2">💰 RECURSOS DEL PROYECTO</h3>
+                <ul className="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>Presupuesto:</strong> Necesario para acciones costosas. Si llegas a 0, no puedes usar ciertas acciones</li>
+                  <li><strong>Tiempo:</strong> Cada turno puede consumir tiempo. ¡No te quedes sin cronograma!</li>
+                  <li><strong>Calidad:</strong> Mantén la calidad alta para evitar defectos críticos</li>
+                  <li><strong>Riesgo:</strong> Si el riesgo sube mucho, pueden ocurrir incidentes graves</li>
+                  <li><strong>Avance:</strong> Llega a 100 para completar un hito con éxito</li>
+                </ul>
+              </section>
+
+              {/* Victory Conditions */}
+              <section>
+                <h3 className="text-xl font-bold text-yellow-400 mb-2">🏆 CONDICIONES DE VICTORIA/DERROTA</h3>
+                <ul className="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>Victoria:</strong> Elimina todos los enemigos del encuentro</li>
+                  <li><strong>Derrota:</strong> Si todo tu equipo renuncia (estrés 100), te quedas sin recursos críticos, o el mismo rol (Director/Planning/Calidad) renuncia <strong>3 veces</strong></li>
+                  <li><strong>Objetivo final:</strong> Completa todas las fases</li>
+                </ul>
+              </section>
+            </div>
+
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors"
+            >
+              ¡Entendido!
+            </button>
+          </div>
+        </div>
+      )}
+
       <BattleViewport snapshot={snapshot} handlers={handlers} />
     </div>
   );

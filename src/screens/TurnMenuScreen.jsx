@@ -40,7 +40,7 @@ export function TurnMenuScreen() {
           </div>
           <div className="border-2 border-slate-700 bg-slate-950 p-4">
             <p className="text-xs uppercase tracking-widest text-slate-500">Fase actual</p>
-            <p className="mt-2 text-lg font-semibold text-slate-200">Campana completa 5 fases</p>
+            <p className="mt-2 text-lg font-semibold text-slate-200">Campaña completa 5 fases</p>
           </div>
         </div>
 
@@ -51,7 +51,7 @@ export function TurnMenuScreen() {
           }}
           className="mt-8 inline-flex items-center justify-center border-2 border-amber-400 bg-amber-300 px-8 py-3 text-sm font-black uppercase tracking-wider text-slate-900 transition hover:bg-amber-200"
         >
-          Iniciar Campana
+          Iniciar Campaña
         </button>
       </div>
     </div>

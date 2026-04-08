@@ -340,7 +340,7 @@ export const actionCatalog: DecisionOption[] = [
     requirements: { time: 1 },
     baseEffects: {
       project: { time: -1, risk: 1 },
-      actor: { stress: -6 },
+      actor: { stress: -25 },
       targetEnemy: { threat: -1 },
     },
     roleScaling: { director: 1, planning: 1, quality: 1 },

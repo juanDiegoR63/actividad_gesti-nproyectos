@@ -338,19 +338,29 @@ function buildIconConsequenceList(effects, maxItems = 3) {
     ...(effects.project ? Object.entries(effects.project) : []),
     ...(effects.actor ? Object.entries(effects.actor) : []),
     ...(effects.targetEnemy ? Object.entries(effects.targetEnemy) : []),
+    ...(effects.allEnemies ? Object.entries(effects.allEnemies).map(([k, v]) => [k + '_all', v]) : []),
   ];
 
   return chunks
     .map(([key, value]) => {
-      const formatted = formatEffectValue(value);
+      // Apply 5x multiplier to enemy HP damage for display (hidden from user)
+      let displayValue = value;
+      let actualKey = key.replace('_all', '');
+      
+      if (actualKey === 'hp' && (effects.targetEnemy || effects.allEnemies) && value !== 0) {
+        displayValue = value * 5;
+      }
+
+      const formatted = formatEffectValue(displayValue);
       if (!formatted) {
         return null;
       }
 
-      const label = PROJECT_EFFECT_LABELS[key] ?? ACTOR_EFFECT_LABELS[key] ?? TARGET_EFFECT_LABELS[key] ?? key;
+      const label = PROJECT_EFFECT_LABELS[actualKey] ?? ACTOR_EFFECT_LABELS[actualKey] ?? TARGET_EFFECT_LABELS[actualKey] ?? actualKey;
+      const suffix = key.endsWith('_all') ? ' (TODOS)' : '';
       return {
-        text: `${getEffectIcon(key)} ${label} ${formatted}`,
-        weight: Math.abs(Number(value) || 0),
+        text: `${getEffectIcon(actualKey)} ${label} ${formatted}${suffix}`,
+        weight: Math.abs(Number(displayValue) || 0),
       };
     })
     .filter(Boolean)
@@ -365,29 +375,39 @@ function buildActionConsequenceLines(option, hasDebt, maxItems = 3) {
     ...(selectedEffects?.project ? Object.entries(selectedEffects.project) : []),
     ...(selectedEffects?.actor ? Object.entries(selectedEffects.actor) : []),
     ...(selectedEffects?.targetEnemy ? Object.entries(selectedEffects.targetEnemy) : []),
+    ...(selectedEffects?.allEnemies ? Object.entries(selectedEffects.allEnemies).map(([k, v]) => [k + '_all', v]) : []),
   ];
 
   return chunks
     .map(([key, value]) => {
-      const formatted = formatEffectValue(value);
+      // Apply 5x multiplier to enemy HP damage for display (hidden from user)
+      let displayValue = value;
+      let actualKey = key.replace('_all', '');
+      
+      if (actualKey === 'hp' && (selectedEffects?.targetEnemy || selectedEffects?.allEnemies) && value !== 0) {
+        displayValue = value * 5;
+      }
+
+      const formatted = formatEffectValue(displayValue);
       if (!formatted) {
         return null;
       }
 
-      const text = `${getEffectIcon(key)} ${(PROJECT_EFFECT_LABELS[key] ?? ACTOR_EFFECT_LABELS[key] ?? TARGET_EFFECT_LABELS[key] ?? key)} ${formatted}`;
+      const suffix = key.endsWith('_all') ? ' (TODOS)' : '';
+      const text = `${getEffectIcon(actualKey)} ${(PROJECT_EFFECT_LABELS[actualKey] ?? ACTOR_EFFECT_LABELS[actualKey] ?? TARGET_EFFECT_LABELS[actualKey] ?? actualKey)} ${formatted}${suffix}`;
       const good = 0x4ade80;
       const bad = 0xf87171;
       let color;
 
-      if (["risk", "stress", "threat"].includes(key)) {
+      if (["risk", "stress", "threat"].includes(actualKey)) {
         color = value > 0 ? bad : good;
-      } else if (key === "hp") {
+      } else if (actualKey === "hp") {
         color = value < 0 ? good : bad;
       } else {
         color = value > 0 ? good : bad;
       }
 
-      return { text, color, weight: Math.abs(Number(value) || 0) };
+      return { text, color, weight: Math.abs(Number(displayValue) || 0) };
     })
     .filter(Boolean)
     .sort((a, b) => b.weight - a.weight)
@@ -1331,9 +1351,10 @@ export class BattleScene {
       const activeEnemy = snapshot.enemies
         .filter((enemy) => enemy.hp > 0)
         .sort((a, b) => b.threat - a.threat)[0] ?? snapshot.enemies[0];
+      const enemyName = truncateText(activeEnemy?.name ?? "Amenaza", 22);
 
       return {
-        text: `Turno de ${activeEnemy?.name ?? "Amenaza"} - Enemigo`,
+        text: `Turno de ${enemyName} - Enemigo`,
         color: 0xfda4af,
       };
     }
@@ -1343,8 +1364,9 @@ export class BattleScene {
     );
 
     const roleLabel = this.getRoleLabel(snapshot.activeTurnToken);
+    const memberName = truncateText(actingMember?.name ?? roleLabel, 20);
     return {
-      text: `Turno de ${actingMember?.name ?? roleLabel} - ${roleLabel}`,
+      text: `Turno de ${memberName} - ${roleLabel}`,
       color: 0xfde68a,
     };
   }
@@ -2454,13 +2476,13 @@ export class BattleScene {
       tagText.y = 95;
 
       const name = new Text({
-        text: truncateText(enemy.name.toUpperCase(), 32),
+        text: truncateText(enemy.name.toUpperCase(), 20),
         style: {
           fontFamily: "Courier New, monospace",
-          fontSize: Math.max(8, Math.round(8 * CANVAS_UI_SCALE)),
+          fontSize: Math.max(5, Math.round(5 * CANVAS_UI_SCALE)),
           fill: 0xf8fafc,
           fontWeight: "700",
-          wordWrap: true,
+          wordWrap: false,
           wordWrapWidth: enemyCardWidth - 104,
         },
       });
@@ -2473,15 +2495,15 @@ export class BattleScene {
         .roundRect(9, 55, Math.max(2, (enemyCardWidth - 106) * hpRatio), 8, 3)
         .fill({ color: isBoss ? 0xfb923c : visual.accentColor });
 
-      const hpLabel = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 7, 0xcbd5e1);
+      const hpLabel = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 6, 0xcbd5e1);
       hpLabel.x = 8;
-      hpLabel.y = 38;
+      hpLabel.y = 36;
 
       const intentText = new Text({
         text: enemy.intent ? truncateText(enemy.intent.label, 44) : "Sin intencion",
         style: {
           fontFamily: "Courier New, monospace",
-          fontSize: Math.max(7, Math.round(7 * CANVAS_UI_SCALE)),
+          fontSize: Math.max(6, Math.round(6 * CANVAS_UI_SCALE)),
           fill: enemy.intent ? 0xfda4af : 0x94a3b8,
           wordWrap: true,
           wordWrapWidth: enemyCardWidth - 16,
@@ -2539,8 +2561,8 @@ export class BattleScene {
     const waveText = `Tanda ${snapshot.encounterIndex + 1}/${waveTotal}`;
 
     const context = makeLabel(
-      `${snapshot.teamName} • ${levelText} • ${waveText} • ${phaseLabel}`,
-      8,
+      `${truncateText(snapshot.teamName || "Equipo", 18)} • ${levelText} • ${waveText} • ${truncateText(phaseLabel, 24)}`,
+      7,
       0x94a3b8,
     );
     context.x = layout.top.x + 12;
@@ -2549,30 +2571,30 @@ export class BattleScene {
     let scenarioLine = null;
     if (snapshot.scenarioName) {
       scenarioLine = makeLabel(
-        `Escenario: ${truncateText(snapshot.scenarioName, 28)} - ${truncateText(snapshot.scenarioSummary || "", 64)}`,
-        7,
+        `Escenario: ${truncateText(snapshot.scenarioName, 20)} - ${truncateText(snapshot.scenarioSummary || "", 42)}`,
+        6,
         0x7dd3fc,
       );
       scenarioLine.x = layout.top.x + 12;
       scenarioLine.y = layout.top.y + 30;
     }
 
-    const title = makeLabel(snapshot.encounterTitle.toUpperCase(), 13, 0xe2e8f0);
+    const title = makeLabel(truncateText(snapshot.encounterTitle.toUpperCase(), 38), 11, 0xe2e8f0);
     title.x = layout.top.x + 12;
-    title.y = layout.top.y + 56;
+    title.y = layout.top.y + 50;
 
     const subtitle = new Text({
       text: snapshot.encounterSubtitle,
       style: {
         fontFamily: "Courier New, monospace",
-        fontSize: Math.max(7, Math.round(8 * CANVAS_UI_SCALE)),
+        fontSize: Math.max(6, Math.round(7 * CANVAS_UI_SCALE)),
         fill: 0xcbd5e1,
         wordWrap: true,
-        wordWrapWidth: Math.max(220, layout.top.w - 260),
+        wordWrapWidth: Math.max(180, layout.top.w - 280),
       },
     });
     subtitle.x = layout.top.x + 12;
-    subtitle.y = layout.top.y + 88;
+    subtitle.y = layout.top.y + 72;
 
     const statusBadge = new Graphics()
       .roundRect(layout.top.x + layout.top.w - 210, layout.top.y + 12, 196, 34, 7)
@@ -2586,13 +2608,13 @@ export class BattleScene {
     statusText.y = layout.top.y + 22;
 
     const turnDescriptor = this.getTurnDescriptor(snapshot);
-    const turnLabel = makeLabel(turnDescriptor.text, 11, turnDescriptor.color);
+    const turnLabel = makeLabel(truncateText(turnDescriptor.text, 44), 9, turnDescriptor.color);
     turnLabel.x = clamp(
       layout.top.x + layout.top.w / 2 - turnLabel.width / 2,
       layout.top.x + 12,
       layout.top.x + layout.top.w - turnLabel.width - 12,
     );
-    turnLabel.y = layout.top.y + 56;
+    turnLabel.y = layout.top.y + 50;
     this.turnLabelRef = turnLabel;
 
     this.uiLayer.addChild(
@@ -2807,9 +2829,9 @@ export class BattleScene {
 
     entry.addChild(card);
 
-    const name = makeLabel(truncateText(enemy.name.toUpperCase(), nameCharsPerLine), 8, 0xf8fafc);
+    const name = makeLabel(truncateText(enemy.name.toUpperCase(), Math.min(nameCharsPerLine, 18)), 5, 0xf8fafc);
 
-    const hp = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 7, 0xfda4af);
+    const hp = makeLabel(`HP ${Math.round(enemy.hp)} / ${Math.round(enemy.maxHp)}`, 6, 0xfda4af);
 
     const hasActiveIntent = enemy.hp > 0 && Boolean(enemy.intent);
     const intentLabelText = hasActiveIntent
@@ -2817,8 +2839,8 @@ export class BattleScene {
       : "SIN AMENAZA ACTIVA";
 
     const intent = makeLabel(
-      truncateText(intentLabelText, bodyCharsPerLine),
-      7,
+      truncateText(intentLabelText, Math.min(bodyCharsPerLine, 20)),
+      6,
       hasActiveIntent ? 0xfda4af : 0x94a3b8,
     );
 
@@ -3128,7 +3150,7 @@ export class BattleScene {
     }
 
     const selectedEnemy = snapshot.enemies.find((enemy) => enemy.id === selectedEnemyId);
-    const targetFontSize = Math.max(7, Math.round(8 * CANVAS_UI_SCALE));
+    const targetFontSize = Math.max(6, Math.round(6 * CANVAS_UI_SCALE));
     const targetCharsPerLine = estimateCharsPerLine(layout.right.w - 24, targetFontSize);
     const targetNameText = selectedEnemy ? selectedEnemy.name.toUpperCase() : "";
     const targetNameDisplay = selectedEnemy
@@ -3136,7 +3158,7 @@ export class BattleScene {
       : "NINGUNO";
     const targetLabel = makeLabel(
       `OBJETIVO: ${targetNameDisplay}`,
-      8,
+      6,
       selectedEnemy ? 0xfde047 : 0x94a3b8,
     );
     targetLabel.x = layout.right.x + 12;

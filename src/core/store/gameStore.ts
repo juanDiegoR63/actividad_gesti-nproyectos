@@ -48,6 +48,7 @@ import type {
 
 const ROLE_ORDER: CharacterRole[] = ["director", "planning", "quality"];
 type BaseDismissalTracker = Record<CharacterRole, boolean>;
+type RoleResignationTracker = Record<CharacterRole, number>;
 
 const ROLE_LABELS: Record<CharacterRole, string> = {
   director: "Director",
@@ -433,6 +434,14 @@ function createInitialBaseDismissalTracker(): BaseDismissalTracker {
   };
 }
 
+function createInitialRoleResignationTracker(): RoleResignationTracker {
+  return {
+    director: 0,
+    planning: 0,
+    quality: 0,
+  };
+}
+
 function markBaseDismissals(
   previousTeam: TeamMember[],
   nextTeam: TeamMember[],
@@ -459,6 +468,27 @@ function markBaseDismissals(
 
 function allBaseMembersDismissedAtLeastOnce(tracker: BaseDismissalTracker): boolean {
   return ROLE_ORDER.every((role) => tracker[role]);
+}
+
+function accumulateRoleResignations(
+  tracker: RoleResignationTracker,
+  freshDismissals: StaffingDismissalRecord[],
+): RoleResignationTracker {
+  const next: RoleResignationTracker = { ...tracker };
+
+  for (const dismissal of freshDismissals) {
+    if (dismissal.cause !== "stress_resignation") {
+      continue;
+    }
+
+    next[dismissal.assignedRole] += 1;
+  }
+
+  return next;
+}
+
+function hasRoleResignationLimitReached(tracker: RoleResignationTracker): boolean {
+  return ROLE_ORDER.some((role) => tracker[role] >= 3);
 }
 
 function applyPhaseSalary(project: ProjectStats, team: TeamMember[]): ProjectStats {
@@ -1508,12 +1538,28 @@ function hasRoleCoverage(team: TeamMember[]): boolean {
   );
 }
 
-function isHardDefeat(project: ProjectStats, baseDismissedByRole: BaseDismissalTracker): boolean {
-  return project.budget <= 0 || allBaseMembersDismissedAtLeastOnce(baseDismissedByRole);
+function isHardDefeat(
+  project: ProjectStats,
+  baseDismissedByRole: BaseDismissalTracker,
+  roleResignationsByRole: RoleResignationTracker,
+): boolean {
+  return (
+    project.budget <= 0 ||
+    allBaseMembersDismissedAtLeastOnce(baseDismissedByRole) ||
+    hasRoleResignationLimitReached(roleResignationsByRole)
+  );
 }
 
-function getGameOverReason(project: ProjectStats, baseDismissedByRole: BaseDismissalTracker): string {
+function getGameOverReason(
+  project: ProjectStats,
+  baseDismissedByRole: BaseDismissalTracker,
+  roleResignationsByRole: RoleResignationTracker,
+): string {
   if (project.budget <= 0) return "Presupuesto agotado";
+  const repeatedRole = ROLE_ORDER.find((role) => roleResignationsByRole[role] >= 3);
+  if (repeatedRole) {
+    return `Derrota por rotacion extrema: el rol ${ROLE_LABELS[repeatedRole]} renuncio 3 veces`;
+  }
   if (allBaseMembersDismissedAtLeastOnce(baseDismissedByRole)) {
     return "Todos los personajes base quedaron fuera al menos una vez";
   }
@@ -1557,6 +1603,7 @@ type GameStore = {
   lastLuckPolarity: LuckEventPolarity | null;
   gameOverReason: string | null;
   baseDismissedByRole: BaseDismissalTracker;
+  roleResignationsByRole: RoleResignationTracker;
   vacantRoles: CharacterRole[];
   activeStaffingCrisis: StaffingCrisisEvent | null;
   finalScore: FinalScoreResult | null;
@@ -1598,6 +1645,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastLuckPolarity: null,
   gameOverReason: null,
   baseDismissedByRole: createInitialBaseDismissalTracker(),
+  roleResignationsByRole: createInitialRoleResignationTracker(),
   vacantRoles: [],
   activeStaffingCrisis: null,
   finalScore: null,
@@ -1678,6 +1726,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastLuckPolarity: null,
       gameOverReason: null,
       baseDismissedByRole: createInitialBaseDismissalTracker(),
+      roleResignationsByRole: createInitialRoleResignationTracker(),
       vacantRoles: [],
       activeStaffingCrisis: null,
       finalScore: null,
@@ -1806,6 +1855,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       disciplinedTeam,
       state.baseDismissedByRole,
     );
+    const roleResignationsByRole = accumulateRoleResignations(
+      state.roleResignationsByRole,
+      freshDismissals,
+    );
     const staffingCrisis = buildStaffingCrisisEvent({
       team: disciplinedTeam,
       turnNumber: state.turnNumber,
@@ -1830,7 +1883,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const roleVacancies = getVacantRoles(disciplinedTeam);
 
-    const defeat = isHardDefeat(project, baseDismissedByRole);
+    const defeat = isHardDefeat(project, baseDismissedByRole, roleResignationsByRole);
     const victory = isVictory(enemiesWithIntent);
 
     if (defeat) {
@@ -1841,11 +1894,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: updatedCombatLogWithCrisis,
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(project, baseDismissedByRole),
+        gameOverReason: getGameOverReason(project, baseDismissedByRole, roleResignationsByRole),
         finalScore: computeFinalScore(project, disciplinedTeam),
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
         baseDismissedByRole,
+        roleResignationsByRole,
         activeStaffingCrisis: null,
         vacantRoles: roleVacancies,
         latestIncident: incidentState.incident ?? state.latestIncident,
@@ -1859,9 +1913,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (victory) {
+      // Check if any defeated enemy was a boss
+      const defeatedBoss = state.currentEncounter.enemies.some((e) => e.type === "boss");
+      
+      // If boss was defeated, reduce stress by 50% for all team members
+      let victoryTeam = disciplinedTeam;
+      if (defeatedBoss) {
+        victoryTeam = disciplinedTeam.map((member) => ({
+          ...member,
+          stress: Math.floor(member.stress * 0.5), // Reduce stress by 50%
+        }));
+      }
+
       set({
         project,
-        team: disciplinedTeam,
+        team: victoryTeam,
         enemies: enemiesWithIntent,
         combatLog: [
           ...updatedCombatLogWithCrisis,
@@ -1870,6 +1936,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
             state.turnNumber,
             "phase",
           ),
+          ...(defeatedBoss
+            ? [
+                createSystemLog(
+                  "¡BOSS DERROTADO! El equipo recupera moral. Estres reducido en 50%.",
+                  state.turnNumber,
+                  "victory",
+                ),
+              ]
+            : []),
         ],
         battleStatus: "victory",
         activeTurnToken: state.activeTurnToken,
@@ -1877,6 +1952,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
         baseDismissedByRole,
+        roleResignationsByRole,
         vacantRoles: roleVacancies,
         activeStaffingCrisis: staffingCrisis,
         latestIncident: incidentState.incident ?? state.latestIncident,
@@ -1903,6 +1979,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
         baseDismissedByRole,
+        roleResignationsByRole,
         vacantRoles: roleVacancies,
         activeStaffingCrisis: staffingCrisis,
         latestIncident: incidentState.incident ?? state.latestIncident,
@@ -1926,6 +2003,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastLuckLabel: resolution.luckEvent?.label ?? null,
       lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
       baseDismissedByRole,
+      roleResignationsByRole,
       vacantRoles: roleVacancies,
       activeStaffingCrisis: null,
       latestIncident: incidentState.incident ?? state.latestIncident,
@@ -1984,10 +2062,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     const preSystemLogs = [...momentumState.logs, ...waveState.logs];
+    const waveFreshDismissals = getFreshDismissals(state.team, waveState.team);
     const baseDismissedAfterWave = markBaseDismissals(
       state.team,
       waveState.team,
       state.baseDismissedByRole,
+    );
+    const roleResignationsAfterWave = accumulateRoleResignations(
+      state.roleResignationsByRole,
+      waveFreshDismissals,
     );
 
     if (waveState.defeated) {
@@ -1998,9 +2081,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...preSystemLogs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(waveState.project, baseDismissedAfterWave),
+        gameOverReason: getGameOverReason(
+          waveState.project,
+          baseDismissedAfterWave,
+          roleResignationsAfterWave,
+        ),
         finalScore: computeFinalScore(waveState.project, waveState.team),
         baseDismissedByRole: baseDismissedAfterWave,
+        roleResignationsByRole: roleResignationsAfterWave,
         activeStaffingCrisis: null,
         vacantRoles: getVacantRoles(waveState.team),
       });
@@ -2068,13 +2156,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const finalLogs = [...postSystemLogs, ...stressState.logs];
 
     const freshDismissals = uniqueDismissalRecords([
-      ...getFreshDismissals(state.team, waveState.team),
+      ...waveFreshDismissals,
       ...getFreshDismissals(waveState.team, stabilizedTeam),
     ]);
     const baseDismissedByRole = markBaseDismissals(
       waveState.team,
       stabilizedTeam,
       baseDismissedAfterWave,
+    );
+    const roleResignationsByRole = accumulateRoleResignations(
+      roleResignationsAfterWave,
+      freshDismissals,
     );
     const staffingCrisis = buildStaffingCrisisEvent({
       team: stabilizedTeam,
@@ -2100,7 +2192,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const roleVacancies = getVacantRoles(stabilizedTeam);
 
-    if (isHardDefeat(incidentState.project, baseDismissedByRole)) {
+    if (isHardDefeat(incidentState.project, baseDismissedByRole, roleResignationsByRole)) {
       set({
         project: incidentState.project,
         team: stabilizedTeam,
@@ -2108,9 +2200,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...finalLogsWithCrisis],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(incidentState.project, baseDismissedByRole),
+        gameOverReason: getGameOverReason(
+          incidentState.project,
+          baseDismissedByRole,
+          roleResignationsByRole,
+        ),
         finalScore: computeFinalScore(incidentState.project, stabilizedTeam),
         baseDismissedByRole,
+        roleResignationsByRole,
         latestIncident: incidentState.incident ?? state.latestIncident,
         lastIncidentTurn: incidentState.lastIncidentTurn,
         activeStaffingCrisis: null,
@@ -2130,6 +2227,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         turnNumber: state.turnNumber + 1,
         roundNumber: nextRoundNumber,
         baseDismissedByRole,
+        roleResignationsByRole,
         vacantRoles: roleVacancies,
         activeStaffingCrisis: staffingCrisis,
         latestIncident: incidentState.incident ?? state.latestIncident,
@@ -2151,6 +2249,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turnNumber: state.turnNumber + 1,
       roundNumber: nextRoundNumber,
       baseDismissedByRole,
+      roleResignationsByRole,
       vacantRoles: roleVacancies,
       activeStaffingCrisis: null,
       latestIncident: incidentState.incident ?? state.latestIncident,
@@ -2302,6 +2401,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       updatedTeam,
       state.baseDismissedByRole,
     );
+    const roleResignationsByRole = accumulateRoleResignations(
+      state.roleResignationsByRole,
+      freshDismissals,
+    );
     const nextVacantRoles = getVacantRoles(updatedTeam);
     const nextCrisis = buildStaffingCrisisEvent({
       team: updatedTeam,
@@ -2334,7 +2437,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
     }
 
-    if (isHardDefeat(state.project, baseDismissedByRole)) {
+    if (isHardDefeat(state.project, baseDismissedByRole, roleResignationsByRole)) {
       set({
         team: updatedTeam,
         project: state.project,
@@ -2342,9 +2445,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...logs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(state.project, baseDismissedByRole),
+        gameOverReason: getGameOverReason(
+          state.project,
+          baseDismissedByRole,
+          roleResignationsByRole,
+        ),
         finalScore: computeFinalScore(state.project, updatedTeam),
         baseDismissedByRole,
+        roleResignationsByRole,
         vacantRoles: nextVacantRoles,
         activeStaffingCrisis: null,
       });
@@ -2354,6 +2462,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       team: updatedTeam,
       baseDismissedByRole,
+      roleResignationsByRole,
       vacantRoles: nextVacantRoles,
       activeStaffingCrisis: nextCrisis,
       availableActions:
@@ -2409,7 +2518,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
     }
 
-    if (isHardDefeat(hired.project, state.baseDismissedByRole)) {
+    if (isHardDefeat(hired.project, state.baseDismissedByRole, state.roleResignationsByRole)) {
       set({
         team: hired.team,
         project: hired.project,
@@ -2417,9 +2526,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...logs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(hired.project, state.baseDismissedByRole),
+        gameOverReason: getGameOverReason(
+          hired.project,
+          state.baseDismissedByRole,
+          state.roleResignationsByRole,
+        ),
         finalScore: computeFinalScore(hired.project, hired.team),
         baseDismissedByRole: state.baseDismissedByRole,
+        roleResignationsByRole: state.roleResignationsByRole,
         vacantRoles: nextVacantRoles,
         activeStaffingCrisis: null,
       });
@@ -2463,6 +2577,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastLuckPolarity: null,
       gameOverReason: null,
       baseDismissedByRole: createInitialBaseDismissalTracker(),
+      roleResignationsByRole: createInitialRoleResignationTracker(),
       vacantRoles: [],
       activeStaffingCrisis: null,
       finalScore: null,
