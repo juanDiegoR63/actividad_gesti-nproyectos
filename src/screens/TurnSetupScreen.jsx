@@ -434,9 +434,9 @@ export function TurnSetupScreen() {
   };
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[1520px] px-6 py-6">
-      <div className="border-4 border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1520px] px-3 py-3 sm:px-6 sm:py-6">
+      <div className="border-4 border-slate-700 bg-slate-900 p-4 shadow-2xl sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Crew Assembly</p>
             <h1 className="mt-2 text-2xl font-black uppercase text-slate-100">
@@ -471,7 +471,7 @@ export function TurnSetupScreen() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {roleMeta.map((role) => {
             const roleCosmetic = cosmetics[role.key];
             const hairOptions = getHairOptionsByGender(roleCosmetic.gender);

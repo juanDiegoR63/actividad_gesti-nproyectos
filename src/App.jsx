@@ -23,19 +23,34 @@ function App() {
     };
   }, []);
 
+  let screen = <TurnBattleScreen />;
+
   if (currentScreen === "menu") {
-    return <TurnMenuScreen />;
+    screen = <TurnMenuScreen />;
   }
 
   if (currentScreen === "creation") {
-    return <TurnSetupScreen />;
+    screen = <TurnSetupScreen />;
   }
 
   if (currentScreen === "results") {
-    return <TurnEndScreen />;
+    screen = <TurnEndScreen />;
   }
 
-  return <TurnBattleScreen />;
+  return (
+    <div className="relative min-h-[100dvh] w-full">
+      {screen}
+
+      <div className="landscape-required-overlay">
+        <div className="landscape-required-card">
+          <p className="landscape-required-title">Modo horizontal recomendado</p>
+          <p className="landscape-required-text">
+            Gira tu celular para jugar en horizontal y tener mejor visibilidad.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default App;

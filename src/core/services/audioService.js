@@ -134,6 +134,8 @@ class AudioService {
 
   sfxVolume = 0.22;
 
+  musicVolumeMultiplier = 3;
+
   ensureContext() {
     if (this.ctx) {
       return this.ctx;
@@ -336,13 +338,13 @@ class AudioService {
       const note = pattern.notes[this.step % pattern.notes.length];
       this.playTone(note, pattern.intervalMs / 1200, {
         type: pattern.type,
-        volume: pattern.volume,
+        volume: Math.min(1, pattern.volume * this.musicVolumeMultiplier),
       });
 
       if (key === "phase1_boss" && this.step % 2 === 0) {
         this.playTone(note / 2, pattern.intervalMs / 1400, {
           type: "square",
-          volume: pattern.volume * 0.8,
+          volume: Math.min(1, pattern.volume * this.musicVolumeMultiplier * 0.8),
           startOffset: 0.04,
         });
       }

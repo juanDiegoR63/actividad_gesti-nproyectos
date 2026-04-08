@@ -23,3 +23,52 @@ body {
     linear-gradient(180deg, #020617 0%, #0f172a 100%);
   color: #f1f5f9;
 }
+
+.landscape-required-overlay {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) and (max-width: 1024px) and (orientation: portrait) {
+  .landscape-required-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.95);
+    padding: 1rem;
+  }
+
+  .landscape-required-card {
+    width: 100%;
+    max-width: 24rem;
+    border: 2px solid #475569;
+    background: #0f172a;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .landscape-required-title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fcd34d;
+  }
+
+  .landscape-required-text {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+}

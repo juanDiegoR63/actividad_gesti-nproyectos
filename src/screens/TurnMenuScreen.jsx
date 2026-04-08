@@ -16,12 +16,12 @@ export function TurnMenuScreen() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-6 py-10">
-      <div className="border-4 border-slate-700 bg-slate-900 p-8 shadow-2xl">
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-6xl flex-col justify-center px-4 py-5 sm:px-6 sm:py-8">
+      <div className="border-4 border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-8">
         <p className="mb-2 text-xs uppercase tracking-[0.3em] text-amber-300">
           Retro Corporate Tactical RPG
         </p>
-        <h1 className="mb-4 text-4xl font-black uppercase text-slate-100">
+        <h1 className="mb-4 text-3xl font-black uppercase text-slate-100 sm:text-4xl">
           PMBOK Turn Battle
         </h1>
         <p className="mb-8 max-w-3xl text-slate-300">
@@ -29,7 +29,7 @@ export function TurnMenuScreen() {
           institucionales. Cada decision consume recursos reales del proyecto.
         </p>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="border-2 border-slate-700 bg-slate-950 p-4">
             <p className="text-xs uppercase tracking-widest text-slate-500">Run Goal</p>
             <p className="mt-2 text-lg font-semibold text-slate-200">20-30 min</p>

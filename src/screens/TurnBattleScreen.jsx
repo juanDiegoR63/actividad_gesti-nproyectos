@@ -304,11 +304,11 @@ export function TurnBattleScreen() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="h-[100dvh] w-[100dvw] overflow-hidden">
       {/* Help Button */}
       <button
         onClick={() => setShowHelpModal(true)}
-        className="fixed top-4 right-4 z-50 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition-colors"
+        className="fixed right-2 top-2 z-50 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-bold text-white shadow-lg transition-colors hover:bg-blue-700 sm:right-4 sm:top-4 sm:px-4 sm:py-2"
         title="Ayuda - Reglas del juego"
       >
         ?
@@ -317,7 +317,7 @@ export function TurnBattleScreen() {
       {/* Help Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-75">
-          <div className="bg-slate-800 border-2 border-slate-600 rounded-lg p-6 max-w-3xl max-h-[90vh] overflow-y-auto text-white shadow-2xl">
+          <div className="max-h-[92dvh] max-w-3xl overflow-y-auto rounded-lg border-2 border-slate-600 bg-slate-800 p-4 text-white shadow-2xl sm:max-h-[90vh] sm:p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-yellow-400">📖 REGLAS DEL JUEGO</h2>
               <button
