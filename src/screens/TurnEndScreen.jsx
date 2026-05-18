@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useGameStore } from "../core/store/gameStore";
 import { audioService } from "../core/services/audioService";
@@ -112,7 +112,10 @@ export function TurnEndScreen() {
     project,
     team,
     teamName,
+<<<<<<< HEAD
     turnNumber,
+=======
+>>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
     combatLog,
     currentScenario,
     resetRun,
@@ -123,7 +126,10 @@ export function TurnEndScreen() {
       project: state.project,
       team: state.team,
       teamName: state.teamName,
+<<<<<<< HEAD
       turnNumber: state.turnNumber,
+=======
+>>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
       combatLog: state.combatLog,
       currentScenario: state.currentScenario,
       resetRun: state.resetRun,
@@ -132,10 +138,74 @@ export function TurnEndScreen() {
 
   const activeMembers = team.filter((member) => member.status !== "out");
   const playedOutcomeSfx = useRef(false);
+  const isReportSentConfigured = useRef(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     audioService.playMusic("results");
   }, []);
+
+  // Función para enviar reporte a Drive adaptada a la nueva store
+  useEffect(() => {
+    const sendAutomatically = async () => {
+      // Prevención de doble renderizado usando un ref en React 18
+      if (isReportSentConfigured.current) return;
+      isReportSentConfigured.current = true;
+
+      const urlGoogleScript = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
+      if (!urlGoogleScript) return;
+
+      setToastMessage("⏳ Enviando Reporte a PMO...");
+
+      const isExito = !gameOverReason;
+      const asunto = isExito ? "CERTIFICACIÓN DE ÉXITO" : "INFORME DE QUIEBRA";
+
+      const textoReporte = `
+${asunto} - BITÁCORA DE MISIÓN
+GREMIO: ${teamName}
+--------------------------------------------------
+INTEGRANTES:
+${team.map((m) => `- ${m.role}: ${m.name} (${m.status})`).join("\n")}
+
+--------------------------------------------------
+Veredicto: ${gameOverReason ?? finalScore?.rank ?? "Desconocido"}
+Puntaje: ${finalScore?.score ?? 0}/100
+Presupuesto Restante: $${Math.round(project.budget)}
+Tiempo Restante: ${Math.round(project.time)} Semanas
+Calidad Alcanzada: ${Math.round(project.quality)}%
+Riesgo Final: ${Math.round(project.risk)}%
+
+--------------------------------------------------
+HISTORIAL:
+${combatLog.map((l) => `- [Turno ${l.turnNumber}] [${l.actorName}] ${l.text}`).join("\n")}
+`;
+
+      const payload = {
+        equipo: `[${isExito ? "ÉXITO" : "FRACASO"}] ${teamName}`,
+        reporte: textoReporte,
+      };
+
+      try {
+        await fetch(urlGoogleScript, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        setToastMessage("✅ Reporte Guardado en Drive");
+        setTimeout(() => {
+          setToastMessage("");
+        }, 5000);
+      } catch (error) {
+        console.error(error);
+        setToastMessage("❌ Error al enviar reporte");
+        setTimeout(() => {
+          setToastMessage("");
+        }, 5000);
+      }
+    };
+    sendAutomatically();
+  }, [gameOverReason, finalScore, project, team, teamName, combatLog]);
 
   useEffect(() => {
     if (playedOutcomeSfx.current) {
@@ -152,12 +222,24 @@ export function TurnEndScreen() {
     resetRun();
   };
 
+<<<<<<< HEAD
   const handleDownloadReport = async () => {
     const reportDate = new Date();
     const formattedDate = reportDate.toLocaleString("es-EC", {
       dateStyle: "short",
       timeStyle: "short",
     });
+=======
+  return (
+    <div className="mx-auto min-h-screen w-full max-w-6xl px-6 py-10">
+      <div className="border-4 border-slate-700 bg-slate-900 p-8 shadow-2xl">
+        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+          Campaign Report
+        </p>
+        <h1 className="mt-2 text-3xl font-black uppercase text-slate-100">
+          Resultados de la run
+        </h1>
+>>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
 
     const report = buildCsvReport({
       generatedAt: formattedDate,
@@ -198,18 +280,30 @@ export function TurnEndScreen() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="border-2 border-slate-700 bg-slate-950 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Puntaje final</p>
-            <p className="mt-2 text-3xl font-black text-amber-300">{finalScore?.score ?? 0}</p>
-            <p className="text-sm text-slate-300">{finalScore?.rank ?? "Sin clasificar"}</p>
-          </div>
-          <div className="border-2 border-slate-700 bg-slate-950 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Estado del proyecto</p>
-            <p className="mt-2 text-sm text-slate-200">
-              Presupuesto {Math.round(project.budget)} • Tiempo {Math.round(project.time)} • Calidad {Math.round(project.quality)} • Riesgo {Math.round(project.risk)}
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Puntaje final
+            </p>
+            <p className="mt-2 text-3xl font-black text-amber-300">
+              {finalScore?.score ?? 0}
+            </p>
+            <p className="text-sm text-slate-300">
+              {finalScore?.rank ?? "Sin clasificar"}
             </p>
           </div>
           <div className="border-2 border-slate-700 bg-slate-950 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Equipo</p>
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Estado del proyecto
+            </p>
+            <p className="mt-2 text-sm text-slate-200">
+              Presupuesto {Math.round(project.budget)} • Tiempo{" "}
+              {Math.round(project.time)} • Calidad {Math.round(project.quality)}{" "}
+              • Riesgo {Math.round(project.risk)}
+            </p>
+          </div>
+          <div className="border-2 border-slate-700 bg-slate-950 p-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Equipo
+            </p>
             <p className="mt-2 text-sm text-slate-200">
               Nombre: {teamName || "Equipo"}
             </p>
@@ -222,13 +316,16 @@ export function TurnEndScreen() {
               </p>
             )}
             {gameOverReason && (
-              <p className="mt-2 text-xs uppercase tracking-wider text-rose-300">Motivo: {gameOverReason}</p>
+              <p className="mt-2 text-xs uppercase tracking-wider text-rose-300">
+                Motivo: {gameOverReason}
+              </p>
             )}
           </div>
         </div>
 
         {finalScore && (
           <div className="mt-6 border-2 border-slate-700 bg-slate-950 p-4">
+<<<<<<< HEAD
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Desglose</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <p className="text-sm text-slate-200">Salud presupuesto: {pretty(finalScore.breakdown.budgetHealth)}%</p>
@@ -237,10 +334,37 @@ export function TurnEndScreen() {
               <p className="text-sm text-slate-200">Control de riesgo: {pretty(finalScore.breakdown.riskControl)}%</p>
               <p className="text-sm text-slate-200">Avance: {pretty(finalScore.breakdown.progressCompletion)}%</p>
               <p className="text-sm text-slate-200">Estabilidad equipo: {pretty(finalScore.breakdown.teamStability)}%</p>
+=======
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+              Desglose
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <p className="text-sm text-slate-200">
+                Salud presupuesto: {pretty(finalScore.breakdown.budgetHealth)}%
+              </p>
+              <p className="text-sm text-slate-200">
+                Cumplimiento temporal: {pretty(finalScore.breakdown.timeHealth)}
+                %
+              </p>
+              <p className="text-sm text-slate-200">
+                Calidad final: {pretty(finalScore.breakdown.qualityHealth)}%
+              </p>
+              <p className="text-sm text-slate-200">
+                Control de riesgo: {pretty(finalScore.breakdown.riskControl)}%
+              </p>
+              <p className="text-sm text-slate-200">
+                Avance: {pretty(finalScore.breakdown.progressCompletion)}%
+              </p>
+              <p className="text-sm text-slate-200">
+                Estabilidad equipo: {pretty(finalScore.breakdown.teamStability)}
+                %
+              </p>
+>>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
             </div>
           </div>
         )}
 
+<<<<<<< HEAD
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
@@ -262,6 +386,23 @@ export function TurnEndScreen() {
             Nueva run
           </button>
         </div>
+=======
+        <button
+          type="button"
+          onClick={() => {
+            void handleReset();
+          }}
+          className="mt-8 border-2 border-amber-400 bg-amber-300 px-6 py-3 text-sm font-black uppercase tracking-wider text-slate-900 overflow-hidden"
+        >
+          Nueva run
+        </button>
+
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border-l-4 border-indigo-400 bg-slate-800 px-4 py-3 text-sm font-medium text-white shadow-xl animate-fade-in-up">
+            {toastMessage}
+          </div>
+        )}
+>>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
       </div>
     </div>
   );

@@ -1,8 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export function PantallaCierre({ estado, resultado, reiniciar, enviarDrive }) {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const sendAutomatically = async () => {
+      if (!enviado && !enviando) {
+        setEnviando(true);
+        try {
+          await enviarDrive(resultado);
+          if (isMounted) setEnviado(true);
+        } catch (e) {
+          // Error manejado
+        } finally {
+          if (isMounted) setEnviando(false);
+        }
+      }
+    };
+    sendAutomatically();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [enviarDrive, resultado]);
 
   const feedbackTiempo =
     estado.ap >= 0
