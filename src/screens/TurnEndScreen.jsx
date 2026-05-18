@@ -112,10 +112,7 @@ export function TurnEndScreen() {
     project,
     team,
     teamName,
-<<<<<<< HEAD
     turnNumber,
-=======
->>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
     combatLog,
     currentScenario,
     resetRun,
@@ -126,10 +123,7 @@ export function TurnEndScreen() {
       project: state.project,
       team: state.team,
       teamName: state.teamName,
-<<<<<<< HEAD
       turnNumber: state.turnNumber,
-=======
->>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
       combatLog: state.combatLog,
       currentScenario: state.currentScenario,
       resetRun: state.resetRun,
@@ -222,24 +216,12 @@ ${combatLog.map((l) => `- [Turno ${l.turnNumber}] [${l.actorName}] ${l.text}`).j
     resetRun();
   };
 
-<<<<<<< HEAD
   const handleDownloadReport = async () => {
     const reportDate = new Date();
     const formattedDate = reportDate.toLocaleString("es-EC", {
       dateStyle: "short",
       timeStyle: "short",
     });
-=======
-  return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl px-6 py-10">
-      <div className="border-4 border-slate-700 bg-slate-900 p-8 shadow-2xl">
-        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-          Campaign Report
-        </p>
-        <h1 className="mt-2 text-3xl font-black uppercase text-slate-100">
-          Resultados de la run
-        </h1>
->>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
 
     const report = buildCsvReport({
       generatedAt: formattedDate,
@@ -325,7 +307,6 @@ ${combatLog.map((l) => `- [Turno ${l.turnNumber}] [${l.actorName}] ${l.text}`).j
 
         {finalScore && (
           <div className="mt-6 border-2 border-slate-700 bg-slate-950 p-4">
-<<<<<<< HEAD
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Desglose</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <p className="text-sm text-slate-200">Salud presupuesto: {pretty(finalScore.breakdown.budgetHealth)}%</p>
@@ -334,37 +315,10 @@ ${combatLog.map((l) => `- [Turno ${l.turnNumber}] [${l.actorName}] ${l.text}`).j
               <p className="text-sm text-slate-200">Control de riesgo: {pretty(finalScore.breakdown.riskControl)}%</p>
               <p className="text-sm text-slate-200">Avance: {pretty(finalScore.breakdown.progressCompletion)}%</p>
               <p className="text-sm text-slate-200">Estabilidad equipo: {pretty(finalScore.breakdown.teamStability)}%</p>
-=======
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-              Desglose
-            </p>
-            <div className="grid gap-3 md:grid-cols-3">
-              <p className="text-sm text-slate-200">
-                Salud presupuesto: {pretty(finalScore.breakdown.budgetHealth)}%
-              </p>
-              <p className="text-sm text-slate-200">
-                Cumplimiento temporal: {pretty(finalScore.breakdown.timeHealth)}
-                %
-              </p>
-              <p className="text-sm text-slate-200">
-                Calidad final: {pretty(finalScore.breakdown.qualityHealth)}%
-              </p>
-              <p className="text-sm text-slate-200">
-                Control de riesgo: {pretty(finalScore.breakdown.riskControl)}%
-              </p>
-              <p className="text-sm text-slate-200">
-                Avance: {pretty(finalScore.breakdown.progressCompletion)}%
-              </p>
-              <p className="text-sm text-slate-200">
-                Estabilidad equipo: {pretty(finalScore.breakdown.teamStability)}
-                %
-              </p>
->>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
             </div>
           </div>
         )}
 
-<<<<<<< HEAD
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
@@ -386,23 +340,12 @@ ${combatLog.map((l) => `- [Turno ${l.turnNumber}] [${l.actorName}] ${l.text}`).j
             Nueva run
           </button>
         </div>
-=======
-        <button
-          type="button"
-          onClick={() => {
-            void handleReset();
-          }}
-          className="mt-8 border-2 border-amber-400 bg-amber-300 px-6 py-3 text-sm font-black uppercase tracking-wider text-slate-900 overflow-hidden"
-        >
-          Nueva run
-        </button>
 
         {toastMessage && (
           <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border-l-4 border-indigo-400 bg-slate-800 px-4 py-3 text-sm font-medium text-white shadow-xl animate-fade-in-up">
             {toastMessage}
           </div>
         )}
->>>>>>> 1b39340515e1f84aac5c9dec2135c5752ba616f8
       </div>
     </div>
   );
