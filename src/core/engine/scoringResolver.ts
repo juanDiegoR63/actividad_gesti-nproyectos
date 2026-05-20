@@ -40,6 +40,7 @@ function getRank(score: number): string {
 export function computeFinalScore(
   project: ProjectStats,
   team: TeamMember[],
+  gameOverReason?: string | null,
 ): FinalScoreResult {
   const budgetHealth = clamp((project.budget / project.maxBudget) * 100, 0, 100);
   const timeHealth = clamp((project.time / project.maxTime) * 100, 0, 100);
@@ -67,6 +68,22 @@ export function computeFinalScore(
     teamStability * 0.1;
 
   const score = Math.round(weighted);
+
+  if (gameOverReason === "Tiempo agotado") {
+    return {
+      score: -Math.max(1, score),
+      rank: "Derrota: tiempo agotado",
+      breakdown: {
+        budgetHealth,
+        timeHealth,
+        qualityHealth,
+        riskControl,
+        progressCompletion,
+        teamStability,
+      },
+    };
+  }
+
   const rank = getRank(score);
 
   return {

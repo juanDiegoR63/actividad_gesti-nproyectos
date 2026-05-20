@@ -367,7 +367,7 @@ export function TurnBattleScreen() {
                 <h3 className="text-xl font-bold text-yellow-400 mb-2">🏆 CONDICIONES DE VICTORIA/DERROTA</h3>
                 <ul className="list-disc list-inside space-y-1 text-slate-300">
                   <li><strong>Victoria:</strong> Elimina todos los enemigos del encuentro</li>
-                  <li><strong>Derrota:</strong> Si todo tu equipo renuncia (estrés 100), te quedas sin recursos críticos, o el mismo rol (Director/Planning/Calidad) renuncia <strong>3 veces</strong></li>
+                  <li><strong>Derrota:</strong> Si todo tu equipo renuncia (estrés 100), te quedas sin recursos críticos, se agota el <strong>tiempo del proyecto</strong>, o el mismo rol (Director/Planning/Calidad) renuncia <strong>3 veces</strong></li>
                   <li><strong>Objetivo final:</strong> Completa todas las fases</li>
                 </ul>
               </section>

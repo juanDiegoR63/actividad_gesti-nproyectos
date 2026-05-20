@@ -1545,6 +1545,7 @@ function isHardDefeat(
 ): boolean {
   return (
     project.budget <= 0 ||
+    project.time <= 0 ||
     allBaseMembersDismissedAtLeastOnce(baseDismissedByRole) ||
     hasRoleResignationLimitReached(roleResignationsByRole)
   );
@@ -1556,6 +1557,7 @@ function getGameOverReason(
   roleResignationsByRole: RoleResignationTracker,
 ): string {
   if (project.budget <= 0) return "Presupuesto agotado";
+  if (project.time <= 0) return "Tiempo agotado";
   const repeatedRole = ROLE_ORDER.find((role) => roleResignationsByRole[role] >= 3);
   if (repeatedRole) {
     return `Derrota por rotacion extrema: el rol ${ROLE_LABELS[repeatedRole]} renuncio 3 veces`;
@@ -1885,6 +1887,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const defeat = isHardDefeat(project, baseDismissedByRole, roleResignationsByRole);
     const victory = isVictory(enemiesWithIntent);
+    const allyTurnGameOverReason = defeat ? getGameOverReason(project, baseDismissedByRole, roleResignationsByRole) : null;
 
     if (defeat) {
       set({
@@ -1894,8 +1897,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: updatedCombatLogWithCrisis,
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(project, baseDismissedByRole, roleResignationsByRole),
-        finalScore: computeFinalScore(project, disciplinedTeam),
+        gameOverReason: allyTurnGameOverReason,
+        finalScore: computeFinalScore(project, disciplinedTeam, allyTurnGameOverReason),
         lastLuckLabel: resolution.luckEvent?.label ?? null,
         lastLuckPolarity: resolution.luckEvent?.polarity ?? null,
         baseDismissedByRole,
@@ -2073,6 +2076,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       waveFreshDismissals,
     );
 
+    const waveGameOverReason = waveState.defeated
+      ? getGameOverReason(waveState.project, baseDismissedAfterWave, roleResignationsAfterWave)
+      : null;
+
     if (waveState.defeated) {
       set({
         project: waveState.project,
@@ -2081,12 +2088,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...preSystemLogs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(
-          waveState.project,
-          baseDismissedAfterWave,
-          roleResignationsAfterWave,
-        ),
-        finalScore: computeFinalScore(waveState.project, waveState.team),
+        gameOverReason: waveGameOverReason,
+        finalScore: computeFinalScore(waveState.project, waveState.team, waveGameOverReason),
         baseDismissedByRole: baseDismissedAfterWave,
         roleResignationsByRole: roleResignationsAfterWave,
         activeStaffingCrisis: null,
@@ -2191,8 +2194,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       : finalLogs;
 
     const roleVacancies = getVacantRoles(stabilizedTeam);
+    const incidentGameOverReason = isHardDefeat(incidentState.project, baseDismissedByRole, roleResignationsByRole)
+      ? getGameOverReason(incidentState.project, baseDismissedByRole, roleResignationsByRole)
+      : null;
 
-    if (isHardDefeat(incidentState.project, baseDismissedByRole, roleResignationsByRole)) {
+    if (incidentGameOverReason) {
       set({
         project: incidentState.project,
         team: stabilizedTeam,
@@ -2200,12 +2206,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...finalLogsWithCrisis],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(
-          incidentState.project,
-          baseDismissedByRole,
-          roleResignationsByRole,
-        ),
-        finalScore: computeFinalScore(incidentState.project, stabilizedTeam),
+        gameOverReason: incidentGameOverReason,
+        finalScore: computeFinalScore(incidentState.project, stabilizedTeam, incidentGameOverReason),
         baseDismissedByRole,
         roleResignationsByRole,
         latestIncident: incidentState.incident ?? state.latestIncident,
@@ -2303,7 +2305,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!nextEncounter) {
       set({
         currentScreen: "results",
-        finalScore: computeFinalScore(projectedProgress, state.team),
+        finalScore: computeFinalScore(projectedProgress, state.team, null),
         project: projectedProgress,
         battleStatus: "idle",
       });
@@ -2437,7 +2439,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
     }
 
-    if (isHardDefeat(state.project, baseDismissedByRole, roleResignationsByRole)) {
+    const coverageGameOverReason = isHardDefeat(state.project, baseDismissedByRole, roleResignationsByRole)
+      ? getGameOverReason(state.project, baseDismissedByRole, roleResignationsByRole)
+      : null;
+
+    if (coverageGameOverReason) {
       set({
         team: updatedTeam,
         project: state.project,
@@ -2445,12 +2451,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...logs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(
-          state.project,
-          baseDismissedByRole,
-          roleResignationsByRole,
-        ),
-        finalScore: computeFinalScore(state.project, updatedTeam),
+        gameOverReason: coverageGameOverReason,
+        finalScore: computeFinalScore(state.project, updatedTeam, coverageGameOverReason),
         baseDismissedByRole,
         roleResignationsByRole,
         vacantRoles: nextVacantRoles,
@@ -2518,7 +2520,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
     }
 
-    if (isHardDefeat(hired.project, state.baseDismissedByRole, state.roleResignationsByRole)) {
+    const hireGameOverReason = isHardDefeat(hired.project, state.baseDismissedByRole, state.roleResignationsByRole)
+      ? getGameOverReason(hired.project, state.baseDismissedByRole, state.roleResignationsByRole)
+      : null;
+
+    if (hireGameOverReason) {
       set({
         team: hired.team,
         project: hired.project,
@@ -2526,12 +2532,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combatLog: [...state.combatLog, ...logs],
         battleStatus: "defeat",
         currentScreen: "results",
-        gameOverReason: getGameOverReason(
-          hired.project,
-          state.baseDismissedByRole,
-          state.roleResignationsByRole,
-        ),
-        finalScore: computeFinalScore(hired.project, hired.team),
+        gameOverReason: hireGameOverReason,
+        finalScore: computeFinalScore(hired.project, hired.team, hireGameOverReason),
         baseDismissedByRole: state.baseDismissedByRole,
         roleResignationsByRole: state.roleResignationsByRole,
         vacantRoles: nextVacantRoles,
